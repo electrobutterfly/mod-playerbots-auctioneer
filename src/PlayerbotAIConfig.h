@@ -313,6 +313,18 @@ public:
     uint32 auctionStartingBidPercent;
     uint32 auctionBidIncrementPercent;
     bool auctionAllowBuyout;
+
+    // Buy-side tuning
+    std::vector<uint32> auctionAhBotGUIDs;
+    uint32 auctionBuyPriceMultiplierMin;
+    uint32 auctionBuyPriceMultiplierMax;
+
+    // Seller preference
+    uint32 auctionSellerPreferenceAggression;
+    uint32 auctionSellerPreferenceRealPlayer;
+    uint32 auctionSellerPreferencePlayerbot;
+    uint32 auctionSellerPreferenceAhBot;
+    bool auctionDontOutbidRealPlayers;
     bool fleeingEnabled;
     bool SummonAtInnkeepersEnabled;
     std::string CombatStrategies, NonCombatStrategies;

@@ -9,6 +9,7 @@
 #include "AuctionHouseMgr.h"
 #include "AuctionHelpers.h"
 #include "AuctionSellAdvisor.h"
+#include "AuctionBuyAdvisor.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -1076,7 +1077,33 @@ bool AhAction::Execute(Event event)
         return true;
     }
 
-        if (subcommand == "sellpick")
+            if (subcommand == "buypick")
+    {
+        auto candidate = PlayerbotAuction::FindAuctionToBuy(botAI);
+        if (!candidate.auction)
+        {
+            reply("No auction worth bidding on.");
+            return false;
+        }
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(candidate.auction->item_template);
+        std::ostringstream out;
+        ItemUsage const usage = AI_VALUE2(ItemUsage, "item usage", candidate.auction->item_template);
+
+        out << "Would buy: auctionId=" << candidate.auction->Id
+            << " item=[" << candidate.auction->item_template << "] "
+            << " usage=" << static_cast<uint32>(usage)
+            << " " << (proto ? proto->Name1 : "<unknown>")
+            << " x" << candidate.auction->itemCount
+            << " seller=" << static_cast<int>(candidate.seller)
+            << (candidate.doBuyout ? " action=buyout price=" : " action=bid price=")
+            << (candidate.doBuyout ? candidate.buyoutAmount : candidate.bidAmount)
+            << " maxWilling=" << candidate.maxWillingPrice
+            << " copper";
+        reply(out.str());
+        return true;
+    }
+
+    if (subcommand == "sellpick")
     {
         auto candidate = PlayerbotAuction::FindItemToSell(botAI);
         if (!candidate.item)
