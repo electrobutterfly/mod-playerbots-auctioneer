@@ -2586,6 +2586,14 @@ Playerbots.LogInGroupOnly = 1
 Playerbots.LogValuesPerTick = 0
 Playerbots.RandomChangeMultiplier = 1
 
+# Enable verbose auction-house tracing for Playerbot RPG.
+# When enabled, the bot logs detailed AH activity (approaching the
+# auctioneer, finding the NPC, sending the hello packet) at DEBUG level.
+# Requires Appender.Playerbots set to level 5 or higher so DEBUG lines
+# actually reach the log file.
+# Default: 0 (disabled)
+AiPlayerbot.DebugAuction = 0
+
 # Tell which spell is avoiding (experimental)
 # Default: 0 (disabled)
 Playerbots.TellWhenAvoidAoe = 0

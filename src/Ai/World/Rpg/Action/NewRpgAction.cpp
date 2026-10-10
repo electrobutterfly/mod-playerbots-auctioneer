@@ -299,13 +299,16 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             break;
         }
         // Add Auctioneer
-        case RPG_GO_AUCTIONEER:
+                case RPG_GO_AUCTIONEER:
         {
             auto& data = std::get<NewRpgInfo::GoAuctioneer>(info.data);
-            WorldPosition& originalPos = data.pos;
             assert(data.pos != WorldPosition());
-            // GO_AUCTIONEER -> WANDER_NPC (bot has arrived)
-            if (bot->GetExactDist(originalPos) < 10.0f)
+
+            // Wait for the action to signal it has finished (it sets
+            // lastReach after sending MSG_AUCTION_HELLO). If we
+            // transition on distance alone, we kill the action before
+            // it can do its job.
+            if (data.lastReach)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -318,6 +321,7 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             }
             break;
         }
+        
         case RPG_WANDER_RANDOM:
         {
             // WANDER_RANDOM -> IDLE
@@ -433,15 +437,76 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
     if (auto* data = std::get_if<NewRpgInfo::GoAuctioneer>(&botAI->rpgInfo.data))
     {
-        if (bot->GetDistance(data->pos) > 10.0f)
+        bool const debugAuction = sPlayerbotAIConfig.debugAuction;
+        float const distToPos = bot->GetDistance(data->pos);
+
+        if (debugAuction && distToPos < 30.0f)
+        {
+            LOG_DEBUG("playerbots",
+                      "[AH-TRACE] {} approaching: distToPos={:.2f} entry={} lastReach={}",
+                      bot->GetName(), distToPos, data->auctioneerEntry, data->lastReach);
+        }
+
+        if (distToPos > 10.0f)
         {
             if (MoveFarTo(data->pos))
                 return true;
             return MoveRandomNear(10.0f);
         }
 
+        // Find the actual creature in the world. The cached NpcLocation
+        // only tells us where to walk; we need a live Creature* to send
+        // its GUID to the auction house handler.
+        Creature* auctioneer = bot->FindNearestCreature(data->auctioneerEntry, INTERACTION_DISTANCE * 3);
+        if (!auctioneer)
+        {
+            LOG_DEBUG("playerbots",
+                      "[New RPG] {} reached auctioneer position but cannot find entry {} nearby, aborting",
+                      bot->GetName(), data->auctioneerEntry);
+            botAI->rpgInfo.ChangeToIdle();
+            return true;
+        }
+
+        if (debugAuction)
+        {
+            LOG_DEBUG("playerbots",
+                      "[AH-TRACE] {} found auctioneer {} (entry {}), distToNPC={:.2f}",
+                      bot->GetName(), auctioneer->GetName(), data->auctioneerEntry,
+                      bot->GetDistance(auctioneer));
+        }
+
+        // INTERACTION_DISTANCE is 5.55 yards; HandleAuctionHelloOpcode validates
+        // this. If the bot stopped at the outer 10-yard arrival radius, walk the
+        // last few yards before sending.
+        if (bot->GetDistance(auctioneer) > INTERACTION_DISTANCE)
+        {
+            if (MoveFarTo(auctioneer))
+                return true;
+            return false;
+        }
+
+        // Send the handshake once, on first arrival.
         if (!data->lastReach)
+        {
             data->lastReach = getMSTime();
+
+            if (debugAuction)
+            {
+                LOG_DEBUG("playerbots",
+                          "[AH-TRACE] {} sending MSG_AUCTION_HELLO to {} (entry {}), dist={:.2f}",
+                          bot->GetName(), auctioneer->GetName(), data->auctioneerEntry,
+                          bot->GetDistance(auctioneer));
+            }
+
+            WorldPacket packet(MSG_AUCTION_HELLO);
+            packet << auctioneer->GetGUID();
+            packet.rpos(0);
+            bot->GetSession()->HandleAuctionHelloOpcode(packet);
+
+            LOG_DEBUG("playerbots",
+                      "[New RPG] {} sent MSG_AUCTION_HELLO to {} (entry {}), now standing at AH",
+                      bot->GetName(), auctioneer->GetName(), data->auctioneerEntry);
+        }
 
         return false;
     }

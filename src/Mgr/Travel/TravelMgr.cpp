@@ -4870,11 +4870,8 @@ void TravelMgr::PrepareDestinationCache()
             bool forAlliance = !(factionEntry->hostileMask & 2);
 
             NpcLocation npc;
-            npc.loc = WorldLocation(mapId,
-                                    x + cos(orient) * 3.0f,
-                                    y + sin(orient) * 3.0f,
-                                    z,
-                                    orient + M_PI);
+            //Fix walking through Walls
+              npc.loc = WorldLocation(mapId, x, y, z, orient);
             npc.entry = templateEntry;
 
             if (forAlliance)
