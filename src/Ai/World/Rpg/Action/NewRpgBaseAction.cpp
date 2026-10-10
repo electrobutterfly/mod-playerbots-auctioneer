@@ -1085,6 +1085,10 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
     if (!sPlayerbotAIConfig.auctionEnabled)
         return false;
 
+    // Per-bot cooldown: don't return to the AH more often than the configured window.
+    if (botAI->nextAuctionVisitTime != 0 && time(nullptr) < botAI->nextAuctionVisitTime)
+        return false;
+
     if (bot->GetLevel() < (uint32)sPlayerbotAIConfig.auctionVisitMinLevel)
         return false;
 

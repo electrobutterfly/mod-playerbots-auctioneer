@@ -508,6 +508,15 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
             packet.rpos(0);
             bot->GetSession()->HandleAuctionHelloOpcode(packet);
 
+            // Start the per-bot AH cooldown so this bot doesn't return
+            // too often. Randomized between VisitMinMinutes and VisitMaxMinutes.
+            {
+                uint32 const minMin = sPlayerbotAIConfig.auctionVisitMinMinutes;
+                uint32 const maxMin = sPlayerbotAIConfig.auctionVisitMaxMinutes;
+                uint32 const cooldownMin = urand(minMin, maxMin > minMin ? maxMin : minMin);
+                botAI->nextAuctionVisitTime = time(nullptr) + cooldownMin * 60;
+            }
+
             LOG_DEBUG("playerbots",
                       "[New RPG] {} sent MSG_AUCTION_HELLO to {} (entry {}), now standing at AH",
                       bot->GetName(), auctioneer->GetName(), data->auctioneerEntry);
