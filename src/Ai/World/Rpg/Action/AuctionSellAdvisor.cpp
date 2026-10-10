@@ -208,7 +208,7 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
         // may be a stack of 1 while ours is a stack of 20.
         basePrice = lowestPerUnit * count;
     }
-    else if (baseline)
+        else if (baseline)
     {
         // No live listing. Draw a per-unit price from the reference band.
         // This is the branch that stops fresh bots from defaulting to
@@ -216,6 +216,26 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
         uint32 perUnit = DrawBaselinePrice(baseline->priceLow,
                                            baseline->priceMedian,
                                            baseline->priceHigh);
+
+        // Multi-snapshot trend. A rising market means today's listings are
+        // cheap relative to what buyers will pay tomorrow, so nudge the
+        // draw up. A falling market means dump inventory now, so nudge
+        // down. Clamped to the same [low, high] band either way, so a
+        // strong trend cannot push a listing outside the reference range.
+        if (baseline->trendBp != 0)
+        {
+            int64 const shift = int64(perUnit) * baseline->trendBp / 10000;
+            int64 const shifted = int64(perUnit) + shift;
+            int64 const lo = int64(baseline->priceLow);
+            int64 const hi = int64(baseline->priceHigh);
+            if (shifted < lo)
+                perUnit = uint32(lo);
+            else if (shifted > hi)
+                perUnit = uint32(hi);
+            else
+                perUnit = uint32(shifted);
+        }
+
         basePrice = perUnit * count;
     }
     else

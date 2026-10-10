@@ -361,6 +361,12 @@ public:
     //   2 = consult auctioneer_baseline_item for pricing and startbids
     uint8 auctionBaselineMode;
 
+    // Crafting arbitrage. When enabled and mode is 2, the sell path
+    // reserves reagents for crafts whose (baseline) output value exceeds
+    // reagent cost by at least auctionCraftMarginPercent.
+    bool   auctionCraftArbitrageEnabled;
+    uint32 auctionCraftMarginPercent;
+
     // Seller preference
     uint32 auctionSellerPreferenceAggression;
     uint32 auctionSellerPreferenceRealPlayer;

@@ -559,6 +559,15 @@ bool PlayerbotAIConfig::Initialize()
         auctionBaselineMode = static_cast<uint8>(rawBaselineMode);
     }
 
+    auctionCraftArbitrageEnabled =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.Baseline.CraftArbitrageEnabled",
+                                    true);
+    auctionCraftMarginPercent =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.Baseline.CraftMarginPercent",
+                                      10);
+    if (auctionCraftMarginPercent > 500)
+        auctionCraftMarginPercent = 500;
+
     auctionMaxActiveListingsPerBot =
         sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
         auctionMaxRelistRetries =

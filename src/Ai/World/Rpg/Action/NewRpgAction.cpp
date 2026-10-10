@@ -13,6 +13,7 @@
 #include "AuctionMailAdvisor.h"
 #include "AuctionBidTracker.h"
 #include "AuctionBaseline.h"
+#include "AuctionCraftAdvisor.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -868,16 +869,31 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 return false;
             }
 
-            // Baseline listing cap. When Mode 2 and the reference market
-            // for this item is already at its typical depth, skip the
-            // listing this visit instead of piling on. Mode 1 and missing
-            // baseline rows pass through with no cap applied.
-            if (!PlayerbotAuction::ShouldListGivenBaselineCap(bot, toSell))
+            // One-off per visit: reserve reagents for profitable crafts.
+            // Computed lazily on the first sell of the visit, then reused
+            // for every subsequent item in the queue.
+            if (!data->protectedReagentsComputed)
+            {
+                data->protectedReagentIds =
+                    PlayerbotAuction::ComputeProtectedReagents(bot);
+                data->protectedReagentsComputed = true;
+                if (sPlayerbotAIConfig.debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} reserved {} reagents for craft arbitrage",
+                              bot->GetName(), data->protectedReagentIds.size());
+                }
+            }
+
+            // Combined baseline policy: craft reserve, category depth,
+            // per-item cap. Mode 1 and missing baseline rows pass through.
+            if (!PlayerbotAuction::ShouldListGivenBaselinePolicy(
+                    bot, toSell, data->protectedReagentIds))
             {
                 if (sPlayerbotAIConfig.debugAuction)
                 {
                     LOG_ERROR("playerbots",
-                              "[AH-TRACE] {} skipping [{}] x{}: baseline cap reached",
+                              "[AH-TRACE] {} skipping [{}] x{}: baseline policy rejected",
                               bot->GetName(), toSell->GetEntry(),
                               toSell->GetCount());
                 }

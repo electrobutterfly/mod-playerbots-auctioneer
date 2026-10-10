@@ -326,3 +326,18 @@ AiPlayerbot.Auction.InitSpareInventory = 0
 #
 # Default: 1
 AiPlayerbot.Auction.Baseline.Mode = 0
+
+# When Mode = 2, reserve reagents for profitable crafts.
+# A reagent is reserved when the bot knows the recipe and the reference
+# prices satisfy: output_sell_value - 5% AH cut >= reagent_cost * (1 + margin)
+# Reserved reagents are not listed on the AH this visit. They stay in the
+# bot's bags until either the recipe stops being profitable or the bot
+# actually crafts the item. Only has effect when Mode = 2.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.Baseline.CraftArbitrageEnabled = 1
+
+# Minimum margin, in percent, above reagent cost before a craft's reagents
+# are reserved. 10 means the crafted output must be worth at least 110%
+# of the reagent cost. Clamped to [0, 500].
+# Default: 10
+AiPlayerbot.Auction.Baseline.CraftMarginPercent = 10
