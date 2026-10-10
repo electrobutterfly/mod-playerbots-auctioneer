@@ -194,3 +194,9 @@ AiPlayerbot.Auction.MaxTrackedBids = 5
 # Overrides the individual Protect* flags above when set to 1.
 # Default: 1
 AiPlayerbot.Auction.ProtectUsefulItems = 1
+
+# If 1, only sell full stacks of stackable items. Partial stacks
+# (e.g. 7 of a 20-max item) are skipped as sell candidates.
+# Non-stackable items (max stack 1) are always eligible.
+# Default: 0 (partial stacks are allowed, current behavior)
+AiPlayerbot.Auction.SellFullStacksOnly = 0

@@ -228,8 +228,15 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         if (sPlayerbotAIConfig.auctionProtectQuestItems && p->Class == ITEM_CLASS_QUEST)
             continue;
 
-        if (sPlayerbotAIConfig.auctionProtectBoundItems && it->IsSoulBound())
+                if (sPlayerbotAIConfig.auctionProtectBoundItems && it->IsSoulBound())
             continue;
+
+        if (sPlayerbotAIConfig.auctionSellFullStacksOnly)
+        {
+            uint32 const maxStack = p->GetMaxStackSize();
+            if (maxStack > 1 && it->GetCount() < maxStack)
+                continue;
+        }
 
         if (sPlayerbotAIConfig.auctionProtectClassReagents && IsProtectedClassReagent(bot, it))
             continue;
