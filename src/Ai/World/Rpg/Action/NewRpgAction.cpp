@@ -303,16 +303,14 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             break;
         }
         // Add Auctioneer
-                case RPG_GO_AUCTIONEER:
+        case RPG_GO_AUCTIONEER:
         {
             auto& data = std::get<NewRpgInfo::GoAuctioneer>(info.data);
             assert(data.pos != WorldPosition());
 
-            // Wait for the action to signal it has finished (it sets
-            // lastReach after sending MSG_AUCTION_HELLO). If we
-            // transition on distance alone, we kill the action before
-            // it can do its job.
-            if (data.lastReach)
+            // Wait for the action to finish: HELLO sent (lastReach set),
+            // and if there was a sell task, that it has been attempted.
+            if (data.lastReach && (data.sellItemGuid.IsEmpty() || data.sellDone))
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -502,7 +500,7 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                           bot->GetDistance(auctioneer));
             }
 
-                        WorldPacket packet(MSG_AUCTION_HELLO);
+            WorldPacket packet(MSG_AUCTION_HELLO);
             packet << auctioneer->GetGUID();
             packet.rpos(0);
             bot->GetSession()->HandleAuctionHelloOpcode(packet);
@@ -553,6 +551,34 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                               "[AH-TRACE] {} listing read: no AuctionHouseObject for faction {}",
                               bot->GetName(), auctioneer->GetFaction());
                 }
+            }
+        }
+        else if (!data->sellItemGuid.IsEmpty() && !data->sellDone)
+        {
+            // HELLO was sent on a previous tick. Send the sell now.
+            Item* toSell = bot->GetItemByGuid(data->sellItemGuid);
+            if (!toSell || !toSell->CanBeTraded())
+            {
+                if (sPlayerbotAIConfig.debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} sell task item gone, skipping",
+                              bot->GetName());
+                }
+                data->sellDone = true;
+                return false;
+            }
+
+            PlayerbotAuction::SendSellItem(bot, auctioneer, toSell,
+                                            data->sellBid, data->sellBuyout, data->sellDuration);
+            data->sellDone = true;
+
+            if (sPlayerbotAIConfig.debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} listed [{}] x{} bid={} buyout={} dur={}",
+                          bot->GetName(), toSell->GetEntry(), toSell->GetCount(),
+                          data->sellBid, data->sellBuyout, data->sellDuration);
             }
         }
 
