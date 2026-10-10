@@ -133,4 +133,11 @@ public:
     bool Execute(Event event) override;
 };
 
+class AhAction : public NewRpgBaseAction
+{
+public:
+    AhAction(PlayerbotAI* botAI) : NewRpgBaseAction(botAI, "ah") {}
+    bool Execute(Event event) override;
+};
+
 #endif

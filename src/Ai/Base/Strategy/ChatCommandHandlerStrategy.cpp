@@ -130,6 +130,8 @@ ChatCommandHandlerStrategy::ChatCommandHandlerStrategy(PlayerbotAI* botAI) : Pas
     supported.push_back("help");
     supported.push_back("gb");
     supported.push_back("bank");
+    // Add Auctioneer
+    supported.push_back("ah");
     supported.push_back("invite");
     supported.push_back("lfg");
     supported.push_back("spell");

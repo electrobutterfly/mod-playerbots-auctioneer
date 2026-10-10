@@ -153,7 +153,9 @@ public:
         creators["buff"] = &ChatActionContext::buff;
         creators["help"] = &ChatActionContext::help;
         creators["gb"] = &ChatActionContext::gb;
+        // Add Auctioneer
         creators["bank"] = &ChatActionContext::bank;
+        creators["ah"] = &ChatActionContext::ah;
         creators["follow chat shortcut"] = &ChatActionContext::follow_chat_shortcut;
         creators["stay chat shortcut"] = &ChatActionContext::stay_chat_shortcut;
         creators["flee chat shortcut"] = &ChatActionContext::flee_chat_shortcut;
@@ -254,6 +256,8 @@ private:
     static Action* move_from_group_chat_shortcut(PlayerbotAI* botAI) { return new MoveFromGroupChatShortcutAction(botAI); }
     static Action* gb(PlayerbotAI* botAI) { return new GuildBankAction(botAI); }
     static Action* bank(PlayerbotAI* botAI) { return new BankAction(botAI); }
+    // Add Auctioneer
+    static Action* ah(PlayerbotAI* botAI) { return new AhAction(botAI); }
     static Action* help(PlayerbotAI* botAI) { return new HelpAction(botAI); }
     static Action* buff(PlayerbotAI* botAI) { return new BuffAction(botAI); }
     static Action* destroy(PlayerbotAI* botAI) { return new DestroyItemAction(botAI); }
