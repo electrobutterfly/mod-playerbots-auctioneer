@@ -625,6 +625,14 @@ public:
     time_t bgReleaseAttemptTime = 0;
     // Add Auctioneer
     time_t nextAuctionVisitTime = 0;
+
+    struct TrackedAuction
+    {
+        uint32 auctionId = 0;
+        uint32 maxWilling = 0;
+        time_t trackedSince = 0;
+    };
+    std::vector<TrackedAuction> trackedAuctions;
     ForceRebuffState forceRebuff;
 
     // Schedules a callback to run once after <delayMs> milliseconds.

@@ -1119,6 +1119,10 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
             return true;
     }
 
+    // Tracked bids — always worth checking, cheap.
+    if (!botAI->trackedAuctions.empty())
+        return true;
+
     // Buyable auction. Gated by probability because the scan is expensive.
     if (sPlayerbotAIConfig.auctionEnableBuying &&
         sPlayerbotAIConfig.auctionBuyScanChancePercent > 0 &&
@@ -1250,13 +1254,19 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
 
                 uint32 buyAuctionId = 0;
                 uint32 buyPrice     = 0;
+                uint32 buyMaxWilling = 0;
                 if (buyCand.auction)
                 {
                     buyAuctionId = buyCand.auction->Id;
                     buyPrice     = buyCand.doBuyout ? buyCand.buyoutAmount : buyCand.bidAmount;
+                    buyMaxWilling = buyCand.maxWillingPrice;
                 }
 
-                if (sellGuid.IsEmpty() && buyAuctionId == 0)
+                // Also trigger a visit if we have tracked bids to check on,
+                // even when nothing new to sell or buy was found.
+                bool const hasTrackedBids = !botAI->trackedAuctions.empty();
+
+                if (sellGuid.IsEmpty() && buyAuctionId == 0 && !hasTrackedBids)
                 {
                     botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry);
                 }
@@ -1264,7 +1274,7 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                 {
                     botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry,
                                                         sellGuid, sellBid, sellBuyout, sellDur,
-                                                        buyAuctionId, buyPrice);
+                                                        buyAuctionId, buyPrice, buyMaxWilling);
                 }
                 return true;
             }
