@@ -325,6 +325,7 @@ public:
     uint32 auctionMaxTrackedBids;
     bool auctionProtectUsefulItems;
     bool auctionSellFullStacksOnly;
+    bool auctionInitSpareInventory;
 
     // Cap on how many live auctions a single bot may have at once.
     // 0 disables selling entirely for bots (they may still buy from the AH).

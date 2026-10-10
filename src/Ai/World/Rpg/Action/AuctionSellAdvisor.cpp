@@ -110,11 +110,25 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
     if (!proto)
         return;
 
-    uint32 basePrice = 0;
+    uint32 const count = item->GetCount();
+    if (count == 0)
+        return;
 
+    // Vendor floor for the whole stack. Listing a stack below what a vendor
+    // would pay is a strictly losing trade: the deposit is spent and the
+    // returned coin is less than simply vendoring. This is the anchor that
+    // stops the undercut loop from walking prices into the ground.
+    uint32 vendorPerUnit = proto->SellPrice;
+    if (vendorPerUnit < 1)
+        vendorPerUnit = 1;
+    uint32 const floorPrice = vendorPerUnit * count;
+
+    // Market reference: the cheapest per-unit price any current listing asks
+    // for this item, normalised so it can be compared across stack sizes.
+    // 0 if nothing matching is up.
+    uint32 lowestPerUnit = 0;
     if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction()))
     {
-        uint32 lowest = 0;
         for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)
         {
             AuctionEntry* entry = it->second;
@@ -125,30 +139,51 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
             uint32 price = entry->buyout ? entry->buyout : entry->startbid;
             if (price == 0)
                 continue;
-            if (lowest == 0 || price < lowest)
-                lowest = price;
+            uint32 const ec = entry->itemCount > 0 ? entry->itemCount : 1;
+            uint32 perUnit = price / ec;
+            if (perUnit < 1)
+                perUnit = 1;
+            if (lowestPerUnit == 0 || perUnit < lowestPerUnit)
+                lowestPerUnit = perUnit;
         }
-        basePrice = lowest;
     }
 
-    if (basePrice == 0)
+    uint32 basePrice = 0;
+    if (lowestPerUnit > 0)
     {
-        uint32 vendor = proto->SellPrice;
-        if (vendor < 1)
-            vendor = 1;
-        basePrice = vendor * 10;
+        // Market price for our own stack, derived from the cheapest listing
+        // per unit. This is the correct comparison across stack sizes: a
+        // stack of 20 does not compete against a stack of 1 at the same
+        // absolute buyout.
+        basePrice = lowestPerUnit * count;
+    }
+    else
+    {
+        // No market reference. Fall back to a multiple of vendor price, per
+        // item, times our stack. The old code used vendor * 10 with no count
+        // multiplier, so a stack of 20 one-copper items was priced as
+        // ~10 copper for the entire stack.
+        basePrice = vendorPerUnit * count * 5;
     }
 
-    // Relist undercuts the current market more aggressively than a fresh listing.
+    // Undercut. Relist uses a slightly more aggressive band than a fresh
+    // listing because the item already failed to sell once.
     uint32 minPct = isRelist ? sPlayerbotAIConfig.auctionRelistUndercutPercentMin
                              : sPlayerbotAIConfig.auctionSellUndercutPercentMin;
     uint32 maxPct = isRelist ? sPlayerbotAIConfig.auctionRelistUndercutPercentMax
                              : sPlayerbotAIConfig.auctionSellUndercutPercentMax;
     if (maxPct < minPct)
         maxPct = minPct;
-    uint32 undercutPct = urand(minPct, maxPct);
+    uint32 const undercutPct = urand(minPct, maxPct);
 
     uint32 sellPrice = basePrice - (basePrice * undercutPct / 100);
+
+    // Never list below the vendor floor. If undercutting would drop us below
+    // it, list at the floor instead — the item either sells above vendor or
+    // it doesn't sell at all, but the bot is not making a losing trade.
+    if (sellPrice < floorPrice)
+        sellPrice = floorPrice;
+
     if (sellPrice < 1)
         sellPrice = 1;
 
