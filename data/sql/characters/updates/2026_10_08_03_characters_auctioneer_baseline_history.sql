@@ -1,8 +1,4 @@
-ALTER TABLE `auctioneer_baseline_item`
-  ADD COLUMN `trend_bp` INT NOT NULL DEFAULT 0
-  COMMENT 'price_median trend over history window, in basis points'
-  AFTER `bid_ratio_class_prior_bp`;
-
+DROP TABLE IF EXISTS `auctioneer_baseline_history`;
 CREATE TABLE IF NOT EXISTS `auctioneer_baseline_history` (
   `faction`       TINYINT UNSIGNED NOT NULL,
   `item_id`       INT UNSIGNED     NOT NULL,

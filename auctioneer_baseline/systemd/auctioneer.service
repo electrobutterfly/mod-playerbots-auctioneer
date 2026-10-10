@@ -1,0 +1,15 @@
+[Unit]
+Description=mod-playerbots-auctioneer baseline refresh
+After=mysql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=acore
+WorkingDirectory=/path/to/modules/mod-playerbots/auctioneer_baseline
+ExecStart=/usr/bin/python3 auctioneer.py run --config /etc/auctioneer.conf
+Nice=10
+IOSchedulingClass=idle
+ProtectSystem=strict
+ReadWritePaths=/var/lib/auctioneer-baseline
+PrivateTmp=yes

@@ -20,7 +20,7 @@ CMakeLists.txt.user
 *.BACKUP.*
 *.BASE.*
 *.LOCAL.*
-auctioneer_baseline
+/auctioneer_baseline/scans*
 
 #
 # IDE & other softwares

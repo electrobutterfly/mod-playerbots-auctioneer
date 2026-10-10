@@ -1,0 +1,6 @@
+# /etc/cron.d/auctioneer
+# Refresh the mod-playerbots auctioneer baseline every 12 hours.
+# DO NOT CHANGE THAT! It could get your IP banned!
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 */12 * * * acore nice -n 10 /usr/bin/python3 /path/to/modules/mod-playerbots/auctioneer_baseline/auctioneer.py run --config /etc/auctioneer.conf

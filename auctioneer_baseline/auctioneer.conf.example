@@ -1,0 +1,68 @@
+# Copy to auctioneer.conf and edit.
+# Only this script reads this file. The module's own .conf is separate.
+
+[mysql]
+# Shared defaults. Each of the two specific sections below inherits any
+# value set here unless it overrides it. Use this block for the common
+# case where both databases live on the same host under the same user.
+
+host     = 127.0.0.1
+port     = 3306
+user     = acore
+password = acore
+
+
+[world]
+# Read-only connection. Used for one query only:
+#     SELECT entry, class, Quality FROM item_template
+# Minimal grant:
+#     GRANT SELECT ON acore_world.item_template TO 'world_ro'@'%';
+# The script never writes to this database.
+
+database = acore_world
+
+# Uncomment to override any [mysql] value for this connection only
+# (different host, different user, different password):
+#
+#host     = 10.0.0.5
+#port     = 3306
+#user     = world_ro
+#password = something_different
+
+
+[character]
+# Read-write connection. The two baseline tables live here.
+# Minimal grants:
+#     GRANT SELECT, INSERT, DELETE ON acore_characters.auctioneer_baseline_item     TO 'char_rw'@'%';
+#     GRANT SELECT, INSERT, DELETE ON acore_characters.auctioneer_baseline_category TO 'char_rw'@'%';
+
+database = acore_characters
+
+# Uncomment to override any [mysql] value for this connection only:
+#
+#host     = 10.0.0.6
+#port     = 3306
+#user     = char_rw
+#password = something_else
+
+
+[source]
+# Auctioneer mirror. Edit if you point at a different realm.
+# DO NOT PULL MORE THAN ONCE IN 24 HOURS! It could get your IP banned!
+horde_url    = https://ah.nerfed.net/realm/getfile?id=14&faction=1
+alliance_url = https://ah.nerfed.net/realm/getfile?id=14&faction=2
+
+[history]
+# How many days of history to keep in auctioneer_baseline_history.
+# The trend computation reads the oldest retained row vs the current run,
+# so this value is also the trend window. Older rows are pruned on each
+# parse. 30 days = short-term momentum, 90 days = seasonal swing, 365 =
+# year-over-year (very noisy on a small source market).
+# Default: 90
+retention_days = 90
+
+
+[paths]
+# Where the downloaded Lua files and the intermediate baseline.sql go.
+# Must exist and be writable by the user running the script.
+work_dir = /var/lib/auctioneer-baseline
