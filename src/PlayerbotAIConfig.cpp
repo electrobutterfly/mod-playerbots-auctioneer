@@ -520,7 +520,9 @@ bool PlayerbotAIConfig::Initialize()
     auctionMaxTrackedBids =
         sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxTrackedBids", 5);
     auctionProtectUsefulItems =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ProtectUsefulItems", false);
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ProtectUsefulItems", true);
+    auctionSellFullStacksOnly =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.SellFullStacksOnly", false);
 
     // Seller preference
     auctionSellerPreferenceAggression =
