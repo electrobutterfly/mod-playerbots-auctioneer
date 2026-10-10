@@ -102,6 +102,8 @@ bool PlayerbotAIConfig::Initialize()
     SitDelay = sConfigMgr->GetOption<int32>("Playerbots.SitDelay", 20000);
     ReturnDelay = sConfigMgr->GetOption<int32>("Playerbots.ReturnDelay", 2000);
     LootDelay = sConfigMgr->GetOption<int32>("Playerbots.LootDelay", 1000);
+    // Add Auctioneer
+    lootBagMinSlots = sConfigMgr->GetOption<uint32>("Playerbots.Loot.BagMinSlots", 0);
     DisabledWithoutRealPlayerLoginDelay = sConfigMgr->GetOption<int32>("Playerbots.DisabledWithoutRealPlayerLoginDelay", 30);
     DisabledWithoutRealPlayerLogoutDelay = sConfigMgr->GetOption<int32>("Playerbots.DisabledWithoutRealPlayerLogoutDelay", 300);
 
@@ -535,6 +537,9 @@ bool PlayerbotAIConfig::Initialize()
         auctionRelistUndercutPercentMax = auctionRelistUndercutPercentMin;
     if (auctionRelistUndercutPercentMax > 100)
         auctionRelistUndercutPercentMax = 100;
+
+    auctionRunAnalysis =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.RunAnalysis", false);
 
     // Seller preference
     auctionSellerPreferenceAggression =
