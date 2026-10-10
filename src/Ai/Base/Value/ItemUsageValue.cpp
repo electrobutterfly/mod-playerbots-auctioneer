@@ -142,7 +142,7 @@ ItemUsage ItemUsageValue::Calculate()
     if (botNeedsItemForQuest)
         return ITEM_USAGE_QUEST;
 
-    if (proto->Class == ITEM_CLASS_PROJECTILE && bot->CanUseItem(proto) == EQUIP_ERR_OK)
+        if (proto->Class == ITEM_CLASS_PROJECTILE && bot->CanUseItem(proto) == EQUIP_ERR_OK)
     {
         ItemUsage ammoUsage = QueryItemUsageForAmmo(proto);
         if (ammoUsage != ITEM_USAGE_NONE)
@@ -152,7 +152,19 @@ ItemUsage ItemUsageValue::Calculate()
     if (proto->SellPrice > 0)
     {
         if (proto->Quality >= ITEM_QUALITY_NORMAL && !isSoulbound && proto->Bonding != BIND_WHEN_PICKED_UP)
+        {
+            // Add Auctioneer
+            // Only classify as AH if the seller would actually accept it. Prevents
+            // items that FindItemToSell would reject from being frozen in bags by
+            // the SellVendorItemsVisitor / SmartDestroyItemAction protection patches.
+            if (sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
+                (proto->Quality < sPlayerbotAIConfig.auctionMinSellQuality ||
+                 proto->SellPrice < sPlayerbotAIConfig.auctionMinSellValueCopper))
+            {
+                return ITEM_USAGE_VENDOR;
+            }
             return ITEM_USAGE_AH;
+        }
         else
             return ITEM_USAGE_VENDOR;
     }
@@ -209,7 +221,20 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
             return ITEM_USAGE_NONE;  // Todo add logic for non-bag containers. We want to look at professions/class and
                                      // only replace if non-bag is larger than bag.
         if (GetSmallestBagSize() >= itemProto->ContainerSlots)
+        {
+            // Add Auctioneer
+            // Surplus bag. If it is at or above the configured loot threshold,
+            // classify it as AH-sellable rather than NONE. This is what makes
+            // the loot / vendor / destroy / AH pipeline all agree to route it
+            // to the auction house instead of leaving it on a corpse or
+            // destroying it.
+            if (sPlayerbotAIConfig.lootBagMinSlots > 0 &&
+                itemProto->ContainerSlots >= sPlayerbotAIConfig.lootBagMinSlots)
+            {
+                return ITEM_USAGE_AH;
+            }
             return ITEM_USAGE_NONE;
+        }
 
         return ITEM_USAGE_EQUIP;
     }

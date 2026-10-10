@@ -203,7 +203,7 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         potionCounts[bucket] += it->GetCount();
     }
 
-    std::unordered_map<uint32, uint32> potionAlreadyPicked;
+        std::unordered_map<uint32, uint32> potionAlreadyPicked;
 
         struct Candidate
     {
@@ -212,45 +212,67 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
     };
     std::vector<Candidate> candidates;
 
+    // Add Auctioneer
+    // Per-reason rejection counters. Only accumulate and emit when both
+    // debugAuction and auctionRunAnalysis are on.
+    bool const runAnalysis =
+        sPlayerbotAIConfig.debugAuction && sPlayerbotAIConfig.auctionRunAnalysis;
+    uint32 scanned = 0, rejTrade = 0, rejQuality = 0, rejEquipped = 0, rejValue = 0;
+    uint32 rejQuest = 0, rejBound = 0, rejFullStack = 0, rejClassReagent = 0;
+    uint32 rejUseful = 0, rejPotion = 0;
+
     for (Item* it : botAI->GetInventoryItems())
     {
+        if (runAnalysis)
+            ++scanned;
         if (!it)
             continue;
         ItemTemplate const* p = it->GetTemplate();
         if (!p)
             continue;
 
-        if (!it->CanBeTraded())
-            continue;
-        if (p->Quality < minQuality)
-            continue;
-        if (it->IsEquipped())
-            continue;
-        if (p->SellPrice < minValue)
-            continue;
+        if (!it->CanBeTraded()) { if (runAnalysis) ++rejTrade; continue; }
+        if (p->Quality < minQuality) { if (runAnalysis) ++rejQuality; continue; }
+        if (it->IsEquipped()) { if (runAnalysis) ++rejEquipped; continue; }
+        if (p->SellPrice < minValue) { if (runAnalysis) ++rejValue; continue; }
 
         if (sPlayerbotAIConfig.auctionProtectQuestItems && p->Class == ITEM_CLASS_QUEST)
+        {
+            if (runAnalysis) ++rejQuest;
             continue;
+        }
 
-                if (sPlayerbotAIConfig.auctionProtectBoundItems && it->IsSoulBound())
+        if (sPlayerbotAIConfig.auctionProtectBoundItems && it->IsSoulBound())
+        {
+            if (runAnalysis) ++rejBound;
             continue;
+        }
 
         if (sPlayerbotAIConfig.auctionSellFullStacksOnly)
         {
             uint32 const maxStack = p->GetMaxStackSize();
             if (maxStack > 1 && it->GetCount() < maxStack)
+            {
+                if (runAnalysis) ++rejFullStack;
                 continue;
+            }
         }
 
         if (sPlayerbotAIConfig.auctionProtectClassReagents && IsProtectedClassReagent(bot, it))
+        {
+            if (runAnalysis) ++rejClassReagent;
             continue;
+        }
 
         if (sPlayerbotAIConfig.auctionProtectUsefulItems)
         {
             AiObjectContext* ctx = botAI->GetAiObjectContext();
             ItemUsage usage = ctx->GetValue<ItemUsage>("item usage", p->ItemId)->Get();
             if (IsUsageProtected(usage))
+            {
+                if (runAnalysis) ++rejUseful;
                 continue;
+            }
         }
 
         if (p->Class == ITEM_CLASS_CONSUMABLE && p->SubClass == ITEM_SUBCLASS_POTION)
@@ -277,13 +299,30 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
             uint32 const held = potionCounts[bucket];
             uint32 const picked = potionAlreadyPicked[bucket];
             if (held <= cap || picked >= (held - cap))
+            {
+                if (runAnalysis) ++rejPotion;
                 continue;
+            }
 
             potionAlreadyPicked[bucket] += it->GetCount();
         }
 
                 uint32 value = p->SellPrice * it->GetCount();
         candidates.push_back({it, value});
+    }
+
+    // Add Auctioneer
+    if (runAnalysis)
+    {
+        LOG_ERROR("playerbots",
+                  "[AH-TRACE] {} sellpick: scanned={} candidates={} "
+                  "rejTrade={} rejQuality={} rejEquipped={} rejValue={} "
+                  "rejQuest={} rejBound={} rejFullStack={} rejClassReagent={} "
+                  "rejUseful={} rejPotion={}",
+                  bot->GetName(), scanned, candidates.size(),
+                  rejTrade, rejQuality, rejEquipped, rejValue,
+                  rejQuest, rejBound, rejFullStack, rejClassReagent,
+                  rejUseful, rejPotion);
     }
 
     if (candidates.empty())

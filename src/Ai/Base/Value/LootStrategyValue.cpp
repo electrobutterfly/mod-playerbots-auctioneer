@@ -8,6 +8,7 @@
 #include "AiObjectContext.h"
 #include "ItemUsageValue.h"
 #include "LootObjectStack.h"
+#include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 
 class NormalLootStrategy : public LootStrategy

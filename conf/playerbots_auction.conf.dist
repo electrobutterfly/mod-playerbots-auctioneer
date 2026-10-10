@@ -208,10 +208,26 @@ AiPlayerbot.Auction.SellFullStacksOnly = 0
 # Default: 3
 AiPlayerbot.Auction.MaxSellsPerVisit = 3
 
+# Minimum size (in slots) for a surplus bag to be looted and sold on the
+# auction house. A "surplus" bag is one that is not an upgrade for any
+# equipped bag slot (the bot does not need to equip it).
+# Set to 0 to disable — bots will loot only bags they can equip, exactly
+# like before this feature existed.
+# Typical values: 12 (mid-tier), 16 (only decent bags), 18 (only endgame).
+# Default: 0 (disabled)
+AiPlayerbot.Loot.BagMinSlots = 12
+
 # Undercut percent range used when relisting an item that came back from an
 # expired auction. This replaces the normal SellUndercutPercentMin/Max for
 # those items (it still undercuts the currently-cheapest matching listing).
 # Default: 10 (min), 20 (max)
 AiPlayerbot.Auction.RelistUndercutPercentMin = 10
 AiPlayerbot.Auction.RelistUndercutPercentMax = 20
+
+# Diagnostic switch: when 1 AND AiPlayerbot.DebugAuction is also 1, every call
+# to FindItemToSell logs a one-line breakdown of how many items were scanned
+# and how many were rejected by each filter. Very verbose; useful for tuning
+# MinSellQuality / MinSellValueCopper / SellFullStacksOnly.
+# Default: 0 (disabled)
+AiPlayerbot.Auction.RunAnalysis = 0
 

@@ -113,6 +113,8 @@ public:
     bool RandomBotGuildNearby, RandomBotInvitePlayer, InviteChat;
     uint32 GlobalCoolDown, ReactDelay, MaxWaitForMove, DisableMoveSplinePath, MaxMovementSearchTime, ExpireActionTime,
         DispelAuraDuration, PassiveDelay, RepeatDelay, ErrorDelay, RpgDelay, SitDelay, ReturnDelay, LootDelay;
+    // Add Auctioneer
+    uint32 lootBagMinSlots;
     bool DynamicReactDelay;
     float SightDistance, SpellDistance, ReactDistance, GrindDistance, LootDistance, ShootDistance, FleeDistance,
         TooCloseDistance, MeleeDistance, FollowDistance, WhisperDistance, ContactDistance, AoeRadius, RpgDistance,
@@ -325,6 +327,7 @@ public:
     uint32 auctionMaxSellsPerVisit;
     uint32 auctionRelistUndercutPercentMin;
     uint32 auctionRelistUndercutPercentMax;
+    bool auctionRunAnalysis;
 
     // Seller preference
     uint32 auctionSellerPreferenceAggression;
