@@ -341,3 +341,19 @@ AiPlayerbot.Auction.Baseline.CraftArbitrageEnabled = 1
 # of the reagent cost. Clamped to [0, 500].
 # Default: 10
 AiPlayerbot.Auction.Baseline.CraftMarginPercent = 10
+
+# How often the running worldserver checks whether the auctioneer tool has
+# imported a newer snapshot, and if so reloads the in-memory baseline
+# caches without a restart. 0 disables the check (data will only load on
+# boot). Clamped to [0, 1440].
+#
+# The check is a single-row aggregate on auctioneer_baseline_item; on a
+# 13000-row table this costs microseconds. The reload itself is a full
+# re-read of both baseline tables and takes a few hundred milliseconds,
+# but only when the snapshot column actually changes.
+#
+# Recommended cadence: whatever your parser runs on, or shorter. If you
+# run the parser every 6 hours, 5 minutes is plenty. If you run it hourly,
+# set this to 5 as well — the check itself is free.
+# Default: 5
+AiPlayerbot.Auction.Baseline.ReloadCheckMinutes = 5

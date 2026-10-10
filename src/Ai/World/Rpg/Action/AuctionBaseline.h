@@ -80,6 +80,13 @@ namespace PlayerbotAuction
         CategoryBaseline const* LookupCategory(uint8 faction, uint8 itemClass,
                                                uint8 quality) const;
 
+        // Called every world tick. Rate-limited internally to
+        // AiPlayerbot.Auction.Baseline.ReloadCheckMinutes. When a newer
+        // snapshot is found in auctioneer_baseline_item, reloads both
+        // caches in place. No bot state is affected; the next pricing
+        // decision any bot makes will see the new values.
+        void Tick(uint32 diff);
+
         size_t Size() const { return _items.size(); }
         size_t CategorySize() const { return _categories.size(); }
         std::string const& Snapshot() const { return _snapshot; }
@@ -97,6 +104,7 @@ namespace PlayerbotAuction
         std::unordered_map<uint64, Baseline>         _items;
         std::unordered_map<uint32, CategoryBaseline> _categories;
         std::string _snapshot;
+        uint32      _reloadCheckTimer = 0;
     };
 
     // Compute the item IDs the bot must not sell on the AH because they are
@@ -118,5 +126,10 @@ namespace PlayerbotAuction
     bool ShouldListGivenBaselinePolicy(Player* bot, Item* item,
                                        std::vector<uint32> const& protectedReagents);
 }
+
+// Registers the world-tick driver for the reload check. Must be called
+// from the module's central script registration, next to
+// AddSC_randombot_level_mgr().
+void AddSC_auction_baseline_reload();
 
 #endif
