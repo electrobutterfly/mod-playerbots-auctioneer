@@ -1,6 +1,7 @@
-#include "AuctionHelpers.h"
 #include "AiObjectContext.h"
+#include "AuctionHelpers.h"
 #include "AuctionHouseMgr.h"
+#include "AuctionBidTracker.h"
 #include "Creature.h"
 #include "DatabaseEnv.h"
 #include "Item.h"
@@ -129,6 +130,18 @@ uint32 RemoveAllBotAuctions(Player* bot)
     AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction());
     if (!ahObj)
         return 0;
+
+    // Drop every persisted bid for this bot too. The bot is about to be
+    // wiped and re-randomized, so a stale bid list from a previous life is
+    // not something the re-evaluation pass should be trying to defend.
+    if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot))
+        PlayerbotAuction::RemoveAllTrackedBids(botAI);
+
+    // Drop every persisted bid for this bot too. The bot is about to be
+    // wiped and re-randomized, so a stale bid list from a previous life is
+    // not something the re-evaluation pass should be trying to defend.
+    if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot))
+        PlayerbotAuction::RemoveAllTrackedBids(botAI);
 
     std::vector<AuctionEntry*> toRemove;
     for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)

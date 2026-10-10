@@ -5,6 +5,7 @@
  */
 
 #include "PlayerbotAIConfig.h"
+#include "AuctionBaseline.h"
 #include "BisListMgr.h"
 #include "Config.h"
 #include "NewRpgInfo.h"
@@ -543,6 +544,21 @@ bool PlayerbotAIConfig::Initialize()
     auctionRunAnalysis =
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.RunAnalysis", false);
 
+    uint32 const rawBaselineMode =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.Baseline.Mode", 1);
+    if (rawBaselineMode != 1 && rawBaselineMode != 2)
+    {
+        LOG_ERROR("server.loading",
+                  "AiPlayerbot.Auction.Baseline.Mode must be 1 or 2 (got {}); "
+                  "falling back to 1.",
+                  rawBaselineMode);
+        auctionBaselineMode = 1;
+    }
+    else
+    {
+        auctionBaselineMode = static_cast<uint8>(rawBaselineMode);
+    }
+
     auctionMaxActiveListingsPerBot =
         sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
         auctionMaxRelistRetries =
@@ -985,7 +1001,10 @@ bool PlayerbotAIConfig::Initialize()
     {
         PlayerbotDungeonRepository::instance().LoadDungeonSuggestions();
     }
-    sTravelMgr.Init();
+        sTravelMgr.Init();
+
+    if (auctionBaselineMode == 2)
+        PlayerbotAuction::AuctionBaselineMgr::instance().Load();
 
     ExcludedHunterPetFamilies.clear();
     LoadList<std::vector<uint32>>(sConfigMgr->GetOption<std::string>("Playerbots.ExcludedHunterPetFamilies", ""), ExcludedHunterPetFamilies);

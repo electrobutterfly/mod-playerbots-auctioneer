@@ -629,10 +629,18 @@ public:
     struct TrackedAuction
     {
         uint32 auctionId = 0;
+        uint32 itemTemplateId = 0;
+        uint32 itemCount = 0;
         uint32 maxWilling = 0;
         time_t trackedSince = 0;
     };
     std::vector<TrackedAuction> trackedAuctions;
+
+    // True once the persisted bids for this bot have been loaded from the
+    // playerbots database into trackedAuctions. Loaded lazily on the first
+    // auction-house visit of the session, not at login, so the login path
+    // stays cheap for the ~1000 bots that log in during startup.
+    bool trackedBidsLoaded = false;
     ForceRebuffState forceRebuff;
 
     // Schedules a callback to run once after <delayMs> milliseconds.

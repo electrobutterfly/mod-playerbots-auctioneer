@@ -4,8 +4,9 @@
  * or (at your option) any later version.
  */
 
-#include "AuctionBuyAdvisor.h"
 #include "AiObjectContext.h"
+#include "AuctionBuyAdvisor.h"
+#include "AuctionBidTracker.h"
 #include "AuctionHouseMgr.h"
 #include "CharacterCache.h"
 #include "ItemTemplate.h"
@@ -24,25 +25,6 @@ namespace PlayerbotAuction
 
 namespace
 {
-    // Usages that mean "this bot wants this item".
-    bool IsUsageWanted(ItemUsage usage)
-    {
-        switch (usage)
-        {
-            case ITEM_USAGE_EQUIP:
-            case ITEM_USAGE_REPLACE:
-            case ITEM_USAGE_QUEST:
-            case ITEM_USAGE_SKILL:
-            case ITEM_USAGE_USE:
-            case ITEM_USAGE_AMMO:
-            case ITEM_USAGE_DISENCHANT:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    // Add Auctioneer
     // Priority tier for a given ItemUsage. Lower number = higher priority.
     // EQUIP / REPLACE / BROKEN_EQUIP are the true reason a bot should spend
     // money on the AH. AMMO and USE matter for ongoing play. QUEST, SKILL,
