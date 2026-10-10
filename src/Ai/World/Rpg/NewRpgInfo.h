@@ -57,6 +57,11 @@ struct NewRpgInfo
         // Tracked-bids pass flag. Set to true after this visit's
         // re-bid walk completes.
         bool trackedBidsDone{false};
+        // Item IDs the bot reserves for a profitable craft this visit.
+        // Populated on the first sell of the visit from the baseline
+        // arbitrage advisor and consulted for every queued sell.
+        std::vector<uint32> protectedReagentIds;
+        bool protectedReagentsComputed{false};
     };
     // RPG_WANDER_NPC
     struct WanderNpc
