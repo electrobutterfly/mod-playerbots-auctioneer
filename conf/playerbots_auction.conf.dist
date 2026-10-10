@@ -12,6 +12,8 @@
 #                                                                                                  #
 ####################################################################################################
 
+AiPlayerbot.DebugAuction = 1
+
 # Master switch for all Playerbot auction house interaction.
 # When 0, bots will not visit auctioneers for automation purposes, will not list items,
 # and will not place bids. The debug commands "ah bid" and "ah sell" in playerbots.conf
@@ -178,3 +180,8 @@ AiPlayerbot.Auction.DontOutbidRealPlayers = 0
 # keep this low on busy servers. 0 disables buying entirely. 100 always scans.
 # Default: 10
 AiPlayerbot.Auction.BuyScanChancePercent = 10
+
+# Maximum number of in-progress auctions a bot will remember and
+# keep bidding on when outbid. 0 disables bid tracking entirely.
+# Default: 5
+AiPlayerbot.Auction.MaxTrackedBids = 5

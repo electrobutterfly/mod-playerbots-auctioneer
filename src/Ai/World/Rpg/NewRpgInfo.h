@@ -49,7 +49,11 @@ struct NewRpgInfo
         // Optional buy task. If buyAuctionId is 0, no buy was queued.
         uint32 buyAuctionId{0};
         uint32 buyPrice{0};
+        uint32 buyMaxWilling{0};
         bool buyDone{false};
+        // Tracked-bids pass flag. Set to true after this visit's
+        // re-bid walk completes.
+        bool trackedBidsDone{false};
     };
     // RPG_WANDER_NPC
     struct WanderNpc
@@ -134,13 +138,14 @@ struct NewRpgInfo
     void ChangeToGoGrind(WorldPosition pos);
     void ChangeToGoCamp(WorldPosition pos);
     // Add Auctioneer
-    void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
+        void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
                               ObjectGuid sellItemGuid = ObjectGuid::Empty,
                               uint32 sellBid = 0,
                               uint32 sellBuyout = 0,
                               uint32 sellDuration = 0,
                               uint32 buyAuctionId = 0,
-                              uint32 buyPrice = 0);
+                              uint32 buyPrice = 0,
+                              uint32 buyMaxWilling = 0);
     void ChangeToWanderNpc();
     void ChangeToWanderRandom();
     void ChangeToDoQuest(uint32 questId, Quest const* quest);

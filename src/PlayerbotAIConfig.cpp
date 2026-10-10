@@ -517,6 +517,9 @@ bool PlayerbotAIConfig::Initialize()
     if (auctionBuyScanChancePercent > 100)
         auctionBuyScanChancePercent = 100;
 
+    auctionMaxTrackedBids =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxTrackedBids", 5);
+
     // Seller preference
     auctionSellerPreferenceAggression =
         sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellerPreference.Aggression", 1);

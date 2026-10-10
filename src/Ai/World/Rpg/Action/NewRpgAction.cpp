@@ -310,10 +310,11 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             assert(data.pos != WorldPosition());
 
             // Wait for the action to finish: HELLO sent (lastReach set),
-            // and any sell / buy task attempted.
+            // sell / buy task attempted, and the tracked-bid pass done.
             bool const sellComplete = data.sellItemGuid.IsEmpty() || data.sellDone;
             bool const buyComplete  = data.buyAuctionId == 0 || data.buyDone;
-            if (data.lastReach && sellComplete && buyComplete)
+            bool const bidsComplete = data.trackedBidsDone;
+            if (data.lastReach && sellComplete && buyComplete && bidsComplete)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -565,7 +566,69 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 }
             }
         }
-                else if (!data->sellItemGuid.IsEmpty() && !data->sellDone)
+        else if (!data->trackedBidsDone)
+        {
+            // HELLO sent. Now check any in-progress auctions and re-bid if
+            // someone has outbid us and we can still afford to keep up.
+            data->trackedBidsDone = true;
+
+            if (!botAI->trackedAuctions.empty())
+            {
+                if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction()))
+                {
+                    for (auto it = botAI->trackedAuctions.begin();
+                         it != botAI->trackedAuctions.end(); )
+                    {
+                        AuctionEntry* tracked = ahObj->GetAuction(it->auctionId);
+
+                        // Auction has expired, sold, or been cancelled.
+                        if (!tracked)
+                        {
+                            it = botAI->trackedAuctions.erase(it);
+                            continue;
+                        }
+
+                        // Still the highest bidder — nothing to do.
+                        if (tracked->bidder == bot->GetGUID())
+                        {
+                            ++it;
+                            continue;
+                        }
+
+                        // Someone else (or no one) is the highest bidder.
+                        uint32 nextBid = tracked->bid > 0
+                            ? tracked->bid + tracked->GetAuctionOutBid()
+                            : tracked->startbid;
+
+                        if (nextBid > it->maxWilling || nextBid > bot->GetMoney())
+                        {
+                            if (sPlayerbotAIConfig.debugAuction)
+                            {
+                                LOG_ERROR("playerbots",
+                                          "[AH-TRACE] {} dropping tracked bid on auctionId={} "
+                                          "(nextBid={} > max={} or unaffordable)",
+                                          bot->GetName(), tracked->Id, nextBid, it->maxWilling);
+                            }
+                            it = botAI->trackedAuctions.erase(it);
+                            continue;
+                        }
+
+                        PlayerbotAuction::SendPlaceBid(bot, auctioneer, tracked->Id, nextBid);
+
+                        if (sPlayerbotAIConfig.debugAuction)
+                        {
+                            LOG_ERROR("playerbots",
+                                      "[AH-TRACE] {} re-bid auctionId={} price={} (max={})",
+                                      bot->GetName(), tracked->Id, nextBid, it->maxWilling);
+                        }
+                        ++it;
+                    }
+                }
+            }
+
+            return false;
+        }
+        else if (!data->sellItemGuid.IsEmpty() && !data->sellDone)
         {
             // HELLO was sent on a previous tick. Send the sell now.
             Item* toSell = bot->GetItemByGuid(data->sellItemGuid);
@@ -598,11 +661,32 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
             PlayerbotAuction::SendPlaceBid(bot, auctioneer, data->buyAuctionId, data->buyPrice);
             data->buyDone = true;
 
+            // Remember this auction so we re-bid if someone outbids us later.
+            if (sPlayerbotAIConfig.auctionMaxTrackedBids > 0)
+            {
+                bool alreadyTracked = false;
+                for (auto const& ta : botAI->trackedAuctions)
+                    if (ta.auctionId == data->buyAuctionId) { alreadyTracked = true; break; }
+
+                if (!alreadyTracked)
+                {
+                    while (botAI->trackedAuctions.size() >= sPlayerbotAIConfig.auctionMaxTrackedBids)
+                        botAI->trackedAuctions.erase(botAI->trackedAuctions.begin());
+
+                    PlayerbotAI::TrackedAuction ta;
+                    ta.auctionId = data->buyAuctionId;
+                    ta.maxWilling = data->buyMaxWilling;
+                    ta.trackedSince = time(nullptr);
+                    botAI->trackedAuctions.push_back(ta);
+                }
+            }
+
             if (sPlayerbotAIConfig.debugAuction)
             {
                 LOG_ERROR("playerbots",
-                          "[AH-TRACE] {} bid/bought auctionId={} price={}",
-                          bot->GetName(), data->buyAuctionId, data->buyPrice);
+                          "[AH-TRACE] {} bid/bought auctionId={} price={} max={}",
+                          bot->GetName(), data->buyAuctionId, data->buyPrice,
+                          data->buyMaxWilling);
             }
         }
 
