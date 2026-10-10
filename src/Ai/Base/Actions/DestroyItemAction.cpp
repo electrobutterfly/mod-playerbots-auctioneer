@@ -93,10 +93,25 @@ bool SmartDestroyItemAction::Execute(Event /*event*/)
         ITEM_USAGE_SKILL);  // Items that might help tradeskill are more important than above but still expenable.
     bestToDestroy.push_back(ITEM_USAGE_USE);  // These are more likely to be usefull 'soon' but still expenable.
 
-    for (auto& usage : bestToDestroy)
+        for (auto& usage : bestToDestroy)
     {
         std::vector<Item*> items = AI_VALUE2(std::vector<Item*>, "inventory items", "usage " + std::to_string(usage));
         std::reverse(items.begin(), items.end());
+
+        // Skip AH-quality items when auction selling is active. The bot
+        // should walk to an auctioneer and list them, not destroy them.
+        if (sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling)
+        {
+            std::vector<Item*> filtered;
+            filtered.reserve(items.size());
+            for (Item* item : items)
+            {
+                ItemUsage itemUsage = AI_VALUE2(ItemUsage, "item usage", item->GetEntry());
+                if (itemUsage != ITEM_USAGE_AH)
+                    filtered.push_back(item);
+            }
+            items.swap(filtered);
+        }
 
         if (DestroyUntilBagSpace(DistinctItemIds(items)))
             return true;

@@ -11,6 +11,7 @@
 #include "ItemUsageValue.h"
 #include "ItemVisitors.h"
 #include "Playerbots.h"
+#include "PlayerbotAIConfig.h"
 
 class SellItemsVisitor : public IterateItemsVisitor
 {
@@ -70,7 +71,7 @@ private:
     uint32 maxQuality;
     bool allClasses;
 };
-
+// Mods for Bots Auctioneer
 class SellVendorItemsVisitor : public SellItemsVisitor
 {
 public:
@@ -81,6 +82,17 @@ public:
     bool Visit(Item* item) override
     {
         ItemUsage usage = context->GetValue<ItemUsage>("item usage", item->GetEntry())->Get();
+
+        // When auction automation is active, reserve AH-quality items so bots
+        // bring them to an auctioneer instead of selling them to a vendor.
+        // Only grey/white items and things the bot explicitly wants to vendor
+        // (ITEM_USAGE_VENDOR) still go to the vendor.
+        if (sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling)
+        {
+            if (usage == ITEM_USAGE_AH)
+                return true;  // skip — let the auction house advisor list it
+        }
+
         if (usage != ITEM_USAGE_VENDOR && usage != ITEM_USAGE_AH)
             return true;
 
