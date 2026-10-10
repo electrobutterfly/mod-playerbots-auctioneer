@@ -310,8 +310,10 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             assert(data.pos != WorldPosition());
 
             // Wait for the action to finish: HELLO sent (lastReach set),
-            // and if there was a sell task, that it has been attempted.
-            if (data.lastReach && (data.sellItemGuid.IsEmpty() || data.sellDone))
+            // and any sell / buy task attempted.
+            bool const sellComplete = data.sellItemGuid.IsEmpty() || data.sellDone;
+            bool const buyComplete  = data.buyAuctionId == 0 || data.buyDone;
+            if (data.lastReach && sellComplete && buyComplete)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -554,7 +556,7 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 }
             }
         }
-        else if (!data->sellItemGuid.IsEmpty() && !data->sellDone)
+                else if (!data->sellItemGuid.IsEmpty() && !data->sellDone)
         {
             // HELLO was sent on a previous tick. Send the sell now.
             Item* toSell = bot->GetItemByGuid(data->sellItemGuid);
@@ -580,6 +582,18 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                           "[AH-TRACE] {} listed [{}] x{} bid={} buyout={} dur={}",
                           bot->GetName(), toSell->GetEntry(), toSell->GetCount(),
                           data->sellBid, data->sellBuyout, data->sellDuration);
+            }
+        }
+        else if (data->buyAuctionId != 0 && !data->buyDone)
+        {
+            PlayerbotAuction::SendPlaceBid(bot, auctioneer, data->buyAuctionId, data->buyPrice);
+            data->buyDone = true;
+
+            if (sPlayerbotAIConfig.debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} bid/bought auctionId={} price={}",
+                          bot->GetName(), data->buyAuctionId, data->buyPrice);
             }
         }
 

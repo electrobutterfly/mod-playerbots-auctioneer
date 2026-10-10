@@ -318,6 +318,7 @@ public:
     std::vector<uint32> auctionAhBotGUIDs;
     uint32 auctionBuyPriceMultiplierMin;
     uint32 auctionBuyPriceMultiplierMax;
+    uint32 auctionBuyScanChancePercent;
 
     // Seller preference
     uint32 auctionSellerPreferenceAggression;

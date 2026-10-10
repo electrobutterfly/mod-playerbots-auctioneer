@@ -42,6 +42,34 @@ namespace
         }
     }
 
+    // Add Auctioneer
+    // Priority tier for a given ItemUsage. Lower number = higher priority.
+    // EQUIP / REPLACE / BROKEN_EQUIP are the true reason a bot should spend
+    // money on the AH. AMMO and USE matter for ongoing play. QUEST, SKILL,
+    // and DISENCHANT are nice-to-haves but should never outrank an upgrade.
+    uint8 UsageTier(ItemUsage usage)
+    {
+        switch (usage)
+        {
+            case ITEM_USAGE_EQUIP:
+            case ITEM_USAGE_REPLACE:
+            case ITEM_USAGE_BROKEN_EQUIP:
+                return 0;
+            case ITEM_USAGE_AMMO:
+                return 1;
+            case ITEM_USAGE_USE:
+                return 2;
+            case ITEM_USAGE_QUEST:
+                return 3;
+            case ITEM_USAGE_SKILL:
+                return 4;
+            case ITEM_USAGE_DISENCHANT:
+                return 5;
+            default:
+                return 255;
+        }
+    }
+
     // Seller weight for effective-price sorting. Higher = preferred.
     float SellerWeightFor(SellerType seller)
     {
@@ -234,6 +262,7 @@ BuyCandidate FindAuctionToBuy(PlayerbotAI* botAI)
         cand.buyoutAmount   = buyoutAmount;
         cand.doBuyout       = doBuyout;
         cand.seller         = seller;
+        cand.usageTier      = UsageTier(usage);
         candidates.push_back(cand);
     }
 
@@ -254,10 +283,14 @@ BuyCandidate FindAuctionToBuy(PlayerbotAI* botAI)
         }
     }
 
-    // Sort by weighted effective price, cheapest first
+    // Sort by tier first (upgrades before consumables before skill mats),
+    // then by weighted effective price within the same tier.
     std::sort(candidates.begin(), candidates.end(),
         [](BuyCandidate const& a, BuyCandidate const& b)
         {
+            if (a.usageTier != b.usageTier)
+                return a.usageTier < b.usageTier;
+
             uint32 const pa = a.doBuyout ? a.buyoutAmount : a.bidAmount;
             uint32 const pb = b.doBuyout ? b.buyoutAmount : b.bidAmount;
             return EffectivePrice(pa, a.seller) < EffectivePrice(pb, b.seller);

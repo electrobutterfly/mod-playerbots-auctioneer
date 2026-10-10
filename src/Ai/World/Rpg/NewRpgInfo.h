@@ -46,6 +46,10 @@ struct NewRpgInfo
         uint32 sellBuyout{0};
         uint32 sellDuration{0};
         bool sellDone{false};
+        // Optional buy task. If buyAuctionId is 0, no buy was queued.
+        uint32 buyAuctionId{0};
+        uint32 buyPrice{0};
+        bool buyDone{false};
     };
     // RPG_WANDER_NPC
     struct WanderNpc
@@ -134,7 +138,9 @@ struct NewRpgInfo
                               ObjectGuid sellItemGuid = ObjectGuid::Empty,
                               uint32 sellBid = 0,
                               uint32 sellBuyout = 0,
-                              uint32 sellDuration = 0);
+                              uint32 sellDuration = 0,
+                              uint32 buyAuctionId = 0,
+                              uint32 buyPrice = 0);
     void ChangeToWanderNpc();
     void ChangeToWanderRandom();
     void ChangeToDoQuest(uint32 questId, Quest const* quest);

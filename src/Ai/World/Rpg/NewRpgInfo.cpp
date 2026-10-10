@@ -25,7 +25,9 @@ void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
                                       ObjectGuid sellItemGuid,
                                       uint32 sellBid,
                                       uint32 sellBuyout,
-                                      uint32 sellDuration)
+                                      uint32 sellDuration,
+                                      uint32 buyAuctionId,
+                                      uint32 buyPrice)
 {
     startT = getMSTime();
     GoAuctioneer data_go;
@@ -37,6 +39,9 @@ void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
     data_go.sellBuyout = sellBuyout;
     data_go.sellDuration = sellDuration;
     data_go.sellDone = false;
+    data_go.buyAuctionId = buyAuctionId;
+    data_go.buyPrice = buyPrice;
+    data_go.buyDone = false;
     data = data_go;
 }
 

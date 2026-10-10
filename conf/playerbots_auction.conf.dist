@@ -172,3 +172,9 @@ AiPlayerbot.Auction.SellerPreference.AhBot      = 1
 
 # If 1, the bot will not outbid a real player on an auction.
 AiPlayerbot.Auction.DontOutbidRealPlayers = 0
+
+# Percent chance per RPG-cycle that a bot will do a full AH scan for
+# something to buy. The scan is expensive (iterates all listings), so
+# keep this low on busy servers. 0 disables buying entirely. 100 always scans.
+# Default: 10
+AiPlayerbot.Auction.BuyScanChancePercent = 10
