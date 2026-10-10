@@ -1,269 +1,169 @@
+# This file is part of the mod-playerbots-auctioneer subsystem for AzerothCore.
+#
+# Copyright (C) 2026 Klaus Simon
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 ####################################################################################################
 #                                                                                                  #
-#  PLAYERBOTS AUCTION CONFIGURATION                                                                #
+#  PLAYERBOTS AUCTIONEER CONFIGURATION                                                             #
 #                                                                                                  #
 #  Settings for automated Auction House interaction by Playerbots.                                 #
-#  These settings are separate from the main playerbots.conf because they are entirely             #
-#  about the AH and can be disabled for servers without an auction house.                          #
+#  You must have mod-ah-but-plus installed (https://github.com/NathanHandley/mod-ah-bot-plus)      #
+#                                                                                                  #
+#                                                                                                  #
+#                                                                                                  #
+#  The auctioneer gives bots the ability to walk to the Auction House, sell surplus                #
+#  inventory, buy items they need, place bids on listings they want, collect expired               #
+#  mail, and relist returned items — the same lifecycle a human player follows.                    #
+#  Even if you disable the server wide auctionhouse buyer and seller in mod-ah-bot (recommended),  #
+#  the bots will create and maintain their own economy.                                            #  
+#                                                                                                  #
+#  Everything in this file is prefixed AiPlayerbot. even though it lives in its own file           #
+#  because the underlying C++ reads it through the same config manager the main                    #
+#  playerbots.conf uses. This file is loaded after playerbots.conf and overrides any               #
+#  matching keys that appear there.                                                                #
 #                                                                                                  #
 #  To apply changes at runtime:                                                                    #
 #    .reload config                                                                                #
 #    .playerbots rndbot reload                                                                     #
 #                                                                                                  #
+#  A note on the Baseline section: the Auctioneer consults a reference price table                 #
+#  (auctioneer_baseline_item in acore_characters) populated out-of-band by a Python tool.          #
+#  The tool itself and its scheduling are documented in                                            #
+#  modules/mod-playerbots/auctioneer_baseline/README.md.                                           #
+#                                                                                                  #
 ####################################################################################################
 
-AiPlayerbot.DebugAuction = 0
+####################################################################################################
+# SECTION INDEX
+#
+#   1. MASTER SWITCHES AND DEBUG
+#   2. AUCTION HOUSE VISITS
+#   3. SELLING
+#        3.1 General
+#        3.2 Pricing and Undercut
+#        3.3 What the Bot Is Allowed to Sell
+#        3.4 Relist and Returned Auctions
+#        3.5 Bot Initialization
+#   4. BUYING
+#        4.1 General
+#        4.2 What the Bot Is Allowed to Buy
+#        4.3 Pricing
+#   5. BIDDING
+#   6. SELLER PREFERENCE
+#   7. BASELINE ECONOMY
+#   8. LOOT
+#
+####################################################################################################
+
+####################################################################################################
+# 1. MASTER SWITCHES AND DEBUG
+####################################################################################################
 
 # Master switch for all Playerbot auction house interaction.
 # When 0, bots will not visit auctioneers for automation purposes, will not list items,
-# and will not place bids. The debug commands "ah bid" and "ah sell" in playerbots.conf
-# (AiPlayerbot.AllowPlayerAuctionCommands) still work independently, for testing.
+# and will not place bids. The debug commands "ah bid" and "ah sell" still work
+# independently when AllowPlayerAuctionCommands is 1, for testing.
+# REMEMBER: YOU MUST INSTALL mod-auction-plus (https://github.com/NathanHandley/mod-ah-bot-plus)
 # Default: 0 (disabled)
 AiPlayerbot.Auction.Enabled = 0
 
-# Allow players to drive auction commands on a bot ("ah bid", "ah sell").
-# 0 = disabled (default), 1 = enabled.
+# Allows a player (or the bot's master) to drive the AH through chat:
+#   whisper the bot with "ah bid <auctionId> <priceCopper>"
+#   whisper the bot with "ah sell <itemId> <bidCopper> <buyoutCopper> [durationMinutes]"
+# Intended for testing and debugging. When 0, only the bot's own AI triggers any
+# auction activity; player whispers are ignored.
+# Default: 0 (disabled)
 AiPlayerbot.AllowPlayerAuctionCommands = 0
 
-# Chance a bot picks "go auctioneer" as its next RPG action. Only fires
-# when the bot meets the visit criteria below.
+# Verbose AH tracing for Playerbot RPG.
+# When enabled, bots emit [AH-TRACE] lines describing their approach to the
+# auctioneer, listing decisions, bid activity, mailbox walk, and every
+# successful or skipped sale. Requires the playerbots logger to be at
+# level 5 (Debug) or higher in worldserver.conf to reach a file or the console.
+# See the README for the exact logger settings and what to grep for.
+# Default: 0 (disabled)
+AiPlayerbot.DebugAuction = 0
+
+# Additional diagnostic: when 1 AND DebugAuction is also 1, every call to
+# FindItemToSell logs a one-line breakdown of how many items were scanned
+# and how many were rejected by each filter. Very verbose; useful for tuning
+# MinSellQuality / MinSellValueCopper / SellFullStacksOnly.
+# Default: 0 (disabled)
+AiPlayerbot.Auction.RunAnalysis = 0
+
+####################################################################################################
+# 2. AUCTION HOUSE VISITS
+#
+# Controls when a bot decides to walk to the AH, and how often it will do so.
+# If any of the three gates below (bag fill, gold, sellable inventory, tracked
+# bids, buy scan) is satisfied, the bot will consider an AH visit as its next
+# RPG action. The RPG weight sets how often this is even attempted relative to
+# other RPG actions.
+#
+####################################################################################################
+
+# Chance a bot picks "go auctioneer" as its next RPG action.
+# Only fires when the bot meets the visit criteria below.
 # Default: 3
 AiPlayerbot.RpgStatusProbWeight.GoAuctioneer = 3
 
-# --- Auction visit gating ---
 # Minimum level for a bot to consider visiting an auctioneer.
+# Bots below this level ignore the AH entirely.
 # Default: 10
 AiPlayerbot.AuctionVisit.MinLevel = 10
 
 # Bot will visit if bag fill percentage is at or above this value.
+# "Bag fill" is a percentage 0..100 of used bag slots. The default of 85
+# means a bot triggers an AH visit when its bags are 85% full, which is
+# the same pressure a real player feels before they go to sell.
 # Set to 0 to disable the bag-pressure gate.
 # Default: 85
 AiPlayerbot.AuctionVisit.MinBagFillPercent = 85
 
-# Bot will visit if it has at least this much money (in copper).
-# 10000 = 1 gold. Set to 0 to disable the gold gate.
+# Bot will visit if it has at least this much money, in copper.
+# 10000 = 1 gold. This is a floor so bots with nothing to spend don't
+# waste visits. Set to 0 to disable the gold gate.
 # Default: 10000
 AiPlayerbot.AuctionVisit.MinGoldCopper = 10000
 
-####################################################################################################
-# VISIT FREQUENCY
-####################################################################################################
-
 # Minimum and maximum minutes between two auction house visits by the same bot.
-# The actual delay is random between Min and Max.
-# Default: 60 (min - 1 hour), 240 (max - 4 hours)
-AiPlayerbot.Auction.VisitMinMinutes = 60
-AiPlayerbot.Auction.VisitMaxMinutes = 240
+# The actual delay is randomized uniformly between Min and Max. This is
+# a per-bot cooldown, not a global rate limit — the global rate is
+# controlled by the RPG weight above.
+# Default: 10 (min), 120 (max)
+AiPlayerbot.Auction.VisitMinMinutes = 10
+AiPlayerbot.Auction.VisitMaxMinutes = 120
 
 ####################################################################################################
-# SELLING
+# 3. SELLING
+####################################################################################################
+
+####################################################################################################
+# 3.1 General
 ####################################################################################################
 
 # Enable bots selling surplus items at the AH.
 # Default: 1 (enabled when Auction.Enabled = 1)
 AiPlayerbot.Auction.EnableSelling = 1
 
-# When listing an item for sale, undercut the current lowest listing by a random
-# percent between Min and Max. If there is no existing listing for the item, bots
-# will use a multiple of the item's vendor SellPrice instead.
-# Default: 5 (min - 5%), 15 (max - 15%)
-AiPlayerbot.Auction.SellUndercutPercentMin = 5
-AiPlayerbot.Auction.SellUndercutPercentMax = 15
-
-# Duration to list auctions for, in minutes. Only 720 (12h), 1440 (24h), and 2880 (48h)
-# are valid values accepted by the auction house handler.
+# Duration to list auctions for, in minutes. Only 720 (12h), 1440 (24h),
+# and 2880 (48h) are valid values accepted by the auction house handler.
+# Values outside this set are rejected at startup and fall back to 720.
 # Default: 720
 AiPlayerbot.Auction.SellDurationMinutes = 720
-
-# Minimum vendor sell price (in copper) of an item before the bot will consider
-# listing it. Items cheaper than this are sold to vendors or destroyed instead.
-# Default: 100 (1 silver)
-AiPlayerbot.Auction.MinSellValueCopper = 100
-
-# Minimum item quality a bot will list. 0 = poor (grey, never listed),
-# 1 = normal (white), 2 = uncommon (green), 3 = rare (blue), 4 = epic, 5 = legendary.
-# Default: 2 (uncommon)
-AiPlayerbot.Auction.MinSellQuality = 2
-
-# Cap on how many healing / mana potions a bot will keep in inventory.
-# Bots will sell excess above this number.
-# A "large bag" bonus is applied when the bot's smallest bag slot has at least
-# LargeBagThreshold slots.
-# Default: 20 (small bags), 40 (large bags)
-AiPlayerbot.Auction.KeepHealthPotions = 20
-AiPlayerbot.Auction.KeepManaPotions = 20
-AiPlayerbot.Auction.KeepHealthPotionsLargeBags = 40
-AiPlayerbot.Auction.KeepManaPotionsLargeBags = 40
-AiPlayerbot.Auction.LargeBagThreshold = 16
-
-# Never sell items that the bot's class needs for its abilities:
-# - Reagents for portals / rituals (mages, warlocks)
-# - Ankhs (shamans)
-# - Symbols of Kings / Divinity (paladins)
-# - Poisons and blinding powder (rogues)
-# - Seeds, soul shards, healthstones (warlocks)
-# - Trap components (hunters)
-# Default: 1 (enabled)
-AiPlayerbot.Auction.ProtectClassReagents = 1
-
-# Never sell items flagged as quest items.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.ProtectQuestItems = 1
-
-# Never sell items that are soulbound or bound to the bot's account.
-# These can't be listed anyway, but this skips the check.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.ProtectBoundItems = 1
-
-####################################################################################################
-# BUYING
-####################################################################################################
-
-# Enable bots buying items at the AH.
-# Default: 1 (enabled when Auction.Enabled = 1)
-AiPlayerbot.Auction.EnableBuying = 1
-
-# Maximum fraction of a bot's total money it will spend in a single AH visit.
-# Default: 25 (25% of the bot's gold)
-AiPlayerbot.Auction.MaxSpendPercentPerVisit = 25
-
-# Enable the bot to search for gear upgrades (armor, weapons, ammo) on the AH.
-# The bot compares listings to its currently equipped items using the mod-playerbots
-# item scoring (same as autogear).
-# Default: 1 (enabled)
-AiPlayerbot.Auction.BuyGearUpgrades = 1
-
-# Enable the bot to search for larger bags.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.BuyBiggerBags = 1
-
-# Enable the bot to buy consumables (potions, flasks, food/drink, reagents for
-# professions). Bots will only buy when the price is below the buyout for the
-# calculated item value (see mod-ah-bot-plus's CalculateItemValue for reference).
-# Default: 1 (enabled)
-AiPlayerbot.Auction.BuyConsumables = 1
-
-# Enable the bot to buy profession materials (herbs, ore, leather, cloth, gems,
-# enchanting dusts, etc.) when it has that profession but the material is missing.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.BuyProfessionMaterials = 1
-
-# Enable the bot to buy quest items it is missing to complete a quest it currently
-# has in its log.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.BuyQuestItems = 1
-
-####################################################################################################
-# BIDDING
-####################################################################################################
-
-# When a bot bids on an auction without buying it out, it starts at this percent
-# of the buyout price. If the resulting bid is below the auction's startbid, the
-# bot will bid the startbid instead.
-# Default: 10 (10%)
-AiPlayerbot.Auction.StartingBidPercent = 10
-
-# Each time another bidder outbids the bot, the bot will increase its bid by this
-# percent of the current bid, up to the buyout price.
-# Default: 10 (10%)
-AiPlayerbot.Auction.BidIncrementPercent = 10
-
-# Whether the bot will buyout an auction outright when the buyout price is below
-# its calculated maximum willing price.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.AllowBuyout = 1
-
-# GUIDs of the AH-bot characters (from mod-ah-bot-plus's AuctionHouseBot.GUIDs).
-# These are used to classify sellers for the buyer-preference logic.
-# Comma-separated, no spaces.
-# Example: "1002,1003,1004"
-AiPlayerbot.Auction.AhBotGUIDs = ""
-
-# Price this bot is willing to pay for an item, expressed as a multiple of the
-# item's vendor SellPrice. The bot rolls a random value in [min, max] per visit.
-AiPlayerbot.Auction.BuyPriceMultiplierMin = 5
-AiPlayerbot.Auction.BuyPriceMultiplierMax = 20
-
-# Seller preference aggression level:
-#   0 = custom (use the individual weights below)
-#   1 = mild     (RealPlayer:Playerbot:AhBot = 3:2:1)
-#   2 = strong   (10:5:1)
-#   3 = absolute (real players only, when any real listing exists for the item)
-AiPlayerbot.Auction.SellerPreference.Aggression = 1
-
-# Custom seller weights, only used when Aggression = 0.
-AiPlayerbot.Auction.SellerPreference.RealPlayer = 3
-AiPlayerbot.Auction.SellerPreference.Playerbot  = 2
-AiPlayerbot.Auction.SellerPreference.AhBot      = 1
-
-# If 1, the bot will not outbid a real player on an auction.
-AiPlayerbot.Auction.DontOutbidRealPlayers = 0
-
-# Percent chance per RPG-cycle that a bot will do a full AH scan for
-# something to buy. The scan is expensive (iterates all listings), so
-# keep this low on busy servers. 0 disables buying entirely. 100 always scans.
-# Default: 10
-AiPlayerbot.Auction.BuyScanChancePercent = 10
-
-# Maximum number of in-progress auctions a bot will remember and
-# keep bidding on when outbid. 0 disables bid tracking entirely.
-# Default: 5
-AiPlayerbot.Auction.MaxTrackedBids = 5
-
-# If 1, the sell advisor will never list an item that the bot itself
-# considers useful (per the game's ItemUsageValue logic — upgrades it
-# could equip, profession reagents it needs, consumables it uses,
-# quest items it's still collecting, ammo matching its ranged weapon).
-# Only items the bot considers junk or vendor/ah-fodder will be listed.
-# Overrides the individual Protect* flags above when set to 1.
-# Default: 1
-AiPlayerbot.Auction.ProtectUsefulItems = 1
-
-# If 1, only sell full stacks of stackable items. Partial stacks
-# (e.g. 7 of a 20-max item) are skipped as sell candidates.
-# Non-stackable items (max stack 1) are always eligible.
-# Default: 0 (partial stacks are allowed, current behavior)
-AiPlayerbot.Auction.SellFullStacksOnly = 0
-
-# Maximum number of returned-auction items a bot will relist in a single
-# auction house visit, in addition to the one normal sell pick per visit.
-# Returned items beyond this cap wait for the next AH visit.
-# 0 disables multi-relist (only the normal single sell pick per visit).
-# Default: 3
-AiPlayerbot.Auction.MaxSellsPerVisit = 3
-
-# Minimum size (in slots) for a surplus bag to be looted and sold on the
-# auction house. A "surplus" bag is one that is not an upgrade for any
-# equipped bag slot (the bot does not need to equip it).
-# Set to 0 to disable — bots will loot only bags they can equip, exactly
-# like before this feature existed.
-# Typical values: 12 (mid-tier), 16 (only decent bags), 18 (only endgame).
-# Default: 0 (disabled)
-AiPlayerbot.Loot.BagMinSlots = 12
-
-# Undercut percent range used when relisting an item that came back from an
-# expired auction. This replaces the normal SellUndercutPercentMin/Max for
-# those items (it still undercuts the currently-cheapest matching listing).
-# Default: 10 (min), 20 (max)
-AiPlayerbot.Auction.RelistUndercutPercentMin = 10
-AiPlayerbot.Auction.RelistUndercutPercentMax = 20
-
-# Diagnostic switch: when 1 AND AiPlayerbot.DebugAuction is also 1, every call
-# to FindItemToSell logs a one-line breakdown of how many items were scanned
-# and how many were rejected by each filter. Very verbose; useful for tuning
-# MinSellQuality / MinSellValueCopper / SellFullStacksOnly.
-# Default: 0 (disabled)
-AiPlayerbot.Auction.RunAnalysis = 0
-
-# Exclude items that any NPC vendor stocks from the auction house sell path.
-# Blacksmith Hammer, Mining Pick, Skinning Knife, Arclight Spanner, and every
-# other supplier-stocked tool are the target: nobody buys these on the AH when
-# they are sold for a few copper by every supplier in the game.
-# Trade goods, recipes, and consumables are exempt — those sometimes have a
-# BuyPrice on a limited-supply vendor while still being legitimate AH items.
-# Requires a server restart to reload the vendor list.
-# Default: 1 (enabled)
-AiPlayerbot.Auction.ExcludeVendorSoldItems = 1
 
 # Cap on how many live auctions a single bot may have at once. When a bot
 # reaches this many live listings it stops queueing new sell candidates
@@ -273,21 +173,124 @@ AiPlayerbot.Auction.ExcludeVendorSoldItems = 1
 # Default: 100 (with 1000 bots = up to 100000 live listings)
 AiPlayerbot.Auction.MaxActiveListingsPerBot = 100
 
-# How many times an item may come back from an expired auction before the
-# bot stops relisting it. When the counter hits this value, the next
-# returned mail for that entry is collected but not relisted, so the item
-# stays in bags and follows the normal vendor/destroy path.
-# 0 disables relisting entirely.
-# Counters reset to 0 when the item is re-listed from bags (fresh listing),
-# and persist across logins via the playerbots database.
-# Default: 3
-AiPlayerbot.Auction.MaxRelistRetries = 3
+# Maximum number of returned-auction items a bot will relist in a single
+# auction house visit, in addition to the one normal sell pick per visit.
+# Returned items beyond this cap wait for the next AH visit.
+# 0 disables multi-relist (only the normal single sell pick per visit).
+# Default: 10
+AiPlayerbot.Auction.MaxSellsPerVisit = 10
+
+####################################################################################################
+# 3.2 Pricing and Undercut
+####################################################################################################
+
+# When listing an item for sale with a live competing listing, undercut the
+# current cheapest per-unit price by a random percent between Min and Max.
+# If there is no existing listing for the item, the bot uses a multiple of
+# vendor SellPrice instead (or the Baseline band if Baseline.Mode = 2).
+# Default: 5 (min), 15 (max)
+AiPlayerbot.Auction.SellUndercutPercentMin = 5
+AiPlayerbot.Auction.SellUndercutPercentMax = 15
+
+# Undercut percent range used when relisting an item that came back from an
+# expired auction. This replaces the normal SellUndercutPercentMin/Max for
+# those items (it still undercuts the currently-cheapest matching listing).
+# The relist band is a bit more aggressive because the item already failed
+# to sell once at the original price.
+# Default: 10 (min), 20 (max)
+AiPlayerbot.Auction.RelistUndercutPercentMin = 10
+AiPlayerbot.Auction.RelistUndercutPercentMax = 20
+
+####################################################################################################
+# 3.3 What the Bot Is Allowed to Sell
+####################################################################################################
+
+# Minimum vendor sell price (in copper) of an item before the bot will
+# consider listing it. Items cheaper than this are sold to vendors or
+# destroyed instead. The default of 100 copper (1 silver) reflects the
+# deposit cost — listing something below this is a guaranteed loss.
+# Default: 100
+AiPlayerbot.Auction.MinSellValueCopper = 100
+
+# Minimum item quality a bot will list.
+#   0 = poor (grey, never listed)
+#   1 = normal (white)
+#   2 = uncommon (green)
+#   3 = rare (blue)
+#   4 = epic (purple)
+#   5 = legendary
+# Values above 6 are clamped to 6.
+# Default: 2 (uncommon)
+AiPlayerbot.Auction.MinSellQuality = 2
+
+# If 1, only sell full stacks of stackable items. Partial stacks
+# (e.g. 7 of a 20-max item) are skipped as sell candidates.
+# Non-stackable items (max stack 1) are always eligible.
+# Default: 0 (partial stacks are allowed)
+AiPlayerbot.Auction.SellFullStacksOnly = 0
+
+# Never sell items that the bot's class needs for its abilities:
+#   Mages / Warlocks  — portal and ritual reagents
+#   Shamans           — Ankhs
+#   Paladins          — Symbols of Kings / Divinity
+#   Rogues            — Poisons and blinding powder
+#   Warlocks          — Soul shards, healthstones, spellstones, firestones
+#   Hunters           — Trap components (projectile class)
+#   Druids            — Wild Thornroot
+# Default: 1 (enabled)
+AiPlayerbot.Auction.ProtectClassReagents = 1
+
+# Never sell items flagged as quest items.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.ProtectQuestItems = 1
+
+# Never sell items that are soulbound or bound to the bot's account.
+# These can't be listed anyway; this just skips the check.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.ProtectBoundItems = 1
+
+# If 1, the sell advisor will never list an item that the bot itself
+# considers useful (per the game's ItemUsageValue logic — upgrades it
+# could equip, profession reagents it needs, consumables it uses,
+# quest items it's still collecting, ammo matching its ranged weapon).
+# Only items the bot considers junk or AH-fodder will be listed.
+# This is stronger than the individual Protect* flags above and takes
+# precedence over them when set to 1.
+# Default: 1
+AiPlayerbot.Auction.ProtectUsefulItems = 1
+
+# Cap on how many healing / mana potions a bot will keep in inventory.
+# Bots will sell excess above this number but never dip below it.
+# A "large bag" bonus is applied when the bot's smallest equipped bag
+# has at least LargeBagThreshold slots.
+# Default: 20 (small bags), 40 (large bags)
+AiPlayerbot.Auction.KeepHealthPotions = 20
+AiPlayerbot.Auction.KeepManaPotions = 20
+AiPlayerbot.Auction.KeepHealthPotionsLargeBags = 40
+AiPlayerbot.Auction.KeepManaPotionsLargeBags = 40
+
+# Bag size threshold at which the large-bag potion keep bonus applies.
+# Default: 16
+AiPlayerbot.Auction.LargeBagThreshold = 16
+
+# Exclude items that any NPC vendor stocks from the auction house sell path.
+# Blacksmith Hammer, Mining Pick, Skinning Knife, Arclight Spanner, and
+# every other supplier-stocked tool are the target: nobody buys these on
+# the AH when they are sold for a few copper by every supplier in the game.
+#
+# Trade goods, recipes, and consumables are exempt — those sometimes have
+# a BuyPrice on a limited-supply vendor while still being legitimate AH
+# items (rare recipes from a quest vendor, etc.).
+#
+# Requires a server restart to reload the vendor list from npc_vendor.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.ExcludeVendorSoldItems = 1
 
 # Comma-separated list of item IDs the AH sell path will never list. Applies
 # to both fresh listings and relisted items returned from an expired auction.
 # Defaults cover the tool items playerbots hands out to every bot with the
-# matching profession, which no player would buy from the AH because a vendor
-# stocks them:
+# matching profession, which no player would buy from the AH because a
+# vendor stocks them anyway:
 #   2901  Mining Pick
 #   5956  Blacksmith Hammer
 #   6219  Arclight Spanner
@@ -295,37 +298,235 @@ AiPlayerbot.Auction.MaxRelistRetries = 3
 #   7005  Skinning Knife
 AiPlayerbot.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005"
 
+####################################################################################################
+# 3.4 Relist and Returned Auctions
+#
+# When an auction expires unsold, the item comes back to the seller via mail.
+# Bots collect these and relist them on the next AH visit, up to a retry
+# cap so that a genuinely unsellable item eventually falls out of the loop
+# and into the bot's normal vendor/destroy path.
+#
+####################################################################################################
+
+# How many times an item may come back from an expired auction before the
+# bot stops relisting it. When the counter hits this value, the next
+# returned mail for that entry is collected but not relisted, so the item
+# stays in bags and follows the normal vendor/destroy path.
+#
+# 0 disables relisting entirely.
+#
+# Counters reset to 0 when the item is re-listed from bags (fresh listing),
+# and persist across logins via the playerbots database.
+# Default: 3
+AiPlayerbot.Auction.MaxRelistRetries = 3
+
+####################################################################################################
+# 3.5 Bot Initialization
+####################################################################################################
+
 # When 1, a fresh bot's randomization seeds a few spare BoE weapons and
 # armor into its bags, which then flow into the auction house. When 0, a
 # bot only has spare gear if it looted it, so a fresh server population
 # will take hours to generate real gear liquidity on the AH.
+#
 # Enabling this slows bot randomization slightly because it scans item
 # templates to pick suitable spares.
 # Default: 0 (disabled)
 AiPlayerbot.Auction.InitSpareInventory = 0
 
 ####################################################################################################
-# BASELINE
+# 4. BUYING
+####################################################################################################
+
+####################################################################################################
+# 4.1 General
+####################################################################################################
+
+# Enable bots buying items at the AH.
+# Default: 1 (enabled when Auction.Enabled = 1)
+AiPlayerbot.Auction.EnableBuying = 1
+
+# Percent chance per RPG-cycle that a bot will do a full AH scan for
+# something to buy. The scan iterates every listing on the AH, so this
+# is the single most expensive operation in the auctioneer. Keep it low
+# on busy servers with many concurrent bots.
 #
+# 0 disables buying entirely.
+# 100 makes every AH visit run a full scan.
+# Default: 10
+AiPlayerbot.Auction.BuyScanChancePercent = 10
+
+# Maximum fraction of a bot's total money it will spend in a single AH visit.
+# The budget caps the sum of all bids and buyouts in one visit, not each
+# individual purchase. Clamped to [0, 100].
+# Default: 25 (25% of the bot's gold)
+AiPlayerbot.Auction.MaxSpendPercentPerVisit = 25
+
+####################################################################################################
+# 4.2 What the Bot Is Allowed to Buy
+####################################################################################################
+
+# Enable the bot to search for gear upgrades (armor, weapons, ammo) on the
+# AH. The bot compares listings to its currently equipped items using the
+# same item scoring used by autogear.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.BuyGearUpgrades = 1
+
+# Enable the bot to search for larger bags.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.BuyBiggerBags = 1
+
+# Enable the bot to buy consumables (potions, flasks, food/drink, reagents
+# for professions). Bots will only buy when the price is below the calculated
+# item value.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.BuyConsumables = 1
+
+# Enable the bot to buy profession materials (herbs, ore, leather, cloth,
+# gems, enchanting dusts, etc.) when it has that profession but the material
+# is missing.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.BuyProfessionMaterials = 1
+
+# Enable the bot to buy quest items it is missing to complete a quest it
+# currently has in its log.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.BuyQuestItems = 1
+
+####################################################################################################
+# 4.3 Pricing
+####################################################################################################
+
+# Price this bot is willing to pay for an item, expressed as a multiple of
+# the item's vendor SellPrice. The bot rolls a random value in [min, max]
+# per visit and multiplies it by vendor price and stack count to get its
+# maximum willingness.
+#
+# When Baseline.Mode = 2 and a baseline row exists for the item, the
+# baseline's price_high is used as an additional ceiling: whichever is
+# higher (vendor multiple or baseline cap) wins.
+#
+# If max < min, max is clamped up to min.
+# Default: 5 (min), 20 (max)
+AiPlayerbot.Auction.BuyPriceMultiplierMin = 5
+AiPlayerbot.Auction.BuyPriceMultiplierMax = 20
+
+# Whether the bot will buy out an auction outright when the buyout price is
+# below its calculated maximum willing price. When 0, the bot will only bid
+# and never buyout, which means it wins fewer auctions but pays less.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.AllowBuyout = 1
+
+####################################################################################################
+# 5. BIDDING
+####################################################################################################
+
+# When a bot bids on an auction without buying it out, it starts at this
+# percent of the buyout price. If the resulting bid is below the auction's
+# startbid, the bot bids the startbid instead. Clamped to [0, 100].
+#
+# When Baseline.Mode = 2 and a baseline row exists for the item, this
+# value is overridden by the reference MINBID/BUYOUT ratio from the
+# baseline table.
+# Default: 10 (10%)
+AiPlayerbot.Auction.StartingBidPercent = 10
+
+# Each time another bidder outbids the bot, the bot will increase its bid
+# by this percent of the current bid, up to the buyout price. Clamped to
+# [0, 100].
+# Default: 10 (10%)
+AiPlayerbot.Auction.BidIncrementPercent = 10
+
+# Maximum number of in-progress auctions a bot will remember and keep
+# bidding on when outbid. When the cap is reached, the oldest tracked bid
+# is dropped to make room. The tracker persists across logins via the
+# playerbots database.
+# 0 disables bid tracking entirely, which means the bot will place a bid
+# but will not defend it if outbid.
+# Default: 5
+AiPlayerbot.Auction.MaxTrackedBids = 5
+
+# If 1, the bot will not outbid a real player on an auction.
+# This makes the bots yield to actual players rather than competing with
+# them in a bidding war the bot can always win through sheer numbers.
+# Default: 0 (disabled)
+AiPlayerbot.Auction.DontOutbidRealPlayers = 0
+
+####################################################################################################
+# 6. SELLER PREFERENCE
+#
+# When multiple listings of the same item exist and the bot could buy any
+# of them, the seller-preference weights decide which one it prefers.
+# The effective price the bot compares is (actual price / seller weight),
+# so a higher weight means the bot is willing to pay more for a listing
+# from that seller type.
+#
+####################################################################################################
+
+# GUIDs of the AH-bot characters (from mod-ah-bot-plus's AuctionHouseBot.GUIDs).
+# These are used to classify sellers for the buyer-preference logic so the
+# bot can distinguish "another playerbot" from "the dedicated AH bot" from
+# "a real player". Comma-separated, no spaces.
+# Example: "1002,1003,1004"
+AiPlayerbot.Auction.AhBotGUIDs = ""
+
+# Seller preference aggression level:
+#   0 = custom (use the individual weights below)
+#   1 = mild     (RealPlayer:Playerbot:AhBot = 3:2:1)
+#   2 = strong   (RealPlayer:Playerbot:AhBot = 10:5:1)
+#   3 = absolute (real players only, when any real listing exists for the item)
+# Default: 1 (mild)
+AiPlayerbot.Auction.SellerPreference.Aggression = 1
+
+# Custom seller weights, only used when Aggression = 0.
+# RealPlayer is what a human would list as, Playerbot is what another
+# bot-listed auction looks like, AhBot is the dedicated AH bot.
+# Default: 3 / 2 / 1
+AiPlayerbot.Auction.SellerPreference.RealPlayer = 3
+AiPlayerbot.Auction.SellerPreference.Playerbot  = 2
+AiPlayerbot.Auction.SellerPreference.AhBot      = 1
+
+####################################################################################################
+# 7. BASELINE ECONOMY
+#
+# The baseline is a reference price table (auctioneer_baseline_item) sourced
+# from an Auctioneer scan of a live market — Lordaeron by default — and
+# imported into acore_characters by an out-of-band Python tool. When a bot
+# is about to list an item and there is no live competing listing, or when
+# it needs a starting bid ratio, it consults the baseline.
+#
+# The table is populated by:
+#     modules/mod-playerbots/auctioneer_baseline/auctioneer.py
+# See that directory's README for installation and scheduling.
+#
+# Baseline data is entirely optional. If the tables are empty or missing,
+# the auctioneer falls back to the mode 1 behaviour with no error spam.
+#
+####################################################################################################
+
 # Selects how bots price their listings and pick their starting bids.
 #
 #   1 = legacy. Pricing is driven by the cheapest live listing for the
 #       item, with a fallback to a multiple of vendor SellPrice when
 #       nothing matching is listed. Startbid is always buyout / 2.
-#       This is the behaviour that existed before the baseline tables.
 #
 #   2 = baseline. The bot consults auctioneer_baseline_item for the item.
-#       When a row exists, prices are drawn from the reference band and
-#       the starting bid uses the observed MINBID/BUYOUT ratio. When no
-#       row exists (item never seen on the source market) the code falls
-#       through to the legacy behaviour above. No crash, no hard
-#       dependency on the table being populated.
+#       When a row exists:
+#         - prices are drawn from the reference band (low / median / high)
+#         - the result is floored at price_low and capped at price_high
+#         - the starting bid uses the observed MINBID/BUYOUT ratio when
+#           the sample is reliable, else the class-level prior
+#         - the multi-snapshot trend column nudges the price up or down
+#           within the band, so a rising market lists higher and a falling
+#           market lists lower
+#         - the per-item concurrent listing cap prevents the AH from
+#           being flooded with the same item
+#       When no row exists (item never seen on the source market) the
+#       code falls through to the legacy behaviour above.
 #
-# The table is populated out-of-band by the auctioneer_baseline tool;
-# see modules/mod-playerbots/auctioneer_baseline/README.md.
-#
-# Default: 1
-AiPlayerbot.Auction.Baseline.Mode = 0
+# Values other than 1 or 2 cause a startup error and fall back to 1.
+# Default: 2
+AiPlayerbot.Auction.Baseline.Mode = 2
 
 # When Mode = 2, reserve reagents for profitable crafts.
 # A reagent is reserved when the bot knows the recipe and the reference
@@ -337,8 +538,9 @@ AiPlayerbot.Auction.Baseline.Mode = 0
 AiPlayerbot.Auction.Baseline.CraftArbitrageEnabled = 1
 
 # Minimum margin, in percent, above reagent cost before a craft's reagents
-# are reserved. 10 means the crafted output must be worth at least 110%
-# of the reagent cost. Clamped to [0, 500].
+# are reserved. 10 means the crafted output must be worth at least 110% of
+# the reagent cost before the bot holds the reagents back. Clamped to
+# [0, 500].
 # Default: 10
 AiPlayerbot.Auction.Baseline.CraftMarginPercent = 10
 
@@ -353,7 +555,21 @@ AiPlayerbot.Auction.Baseline.CraftMarginPercent = 10
 # but only when the snapshot column actually changes.
 #
 # Recommended cadence: whatever your parser runs on, or shorter. If you
-# run the parser every 6 hours, 5 minutes is plenty. If you run it hourly,
-# set this to 5 as well — the check itself is free.
-# Default: 5
-AiPlayerbot.Auction.Baseline.ReloadCheckMinutes = 5
+# run the parser every 12 hours, 8 hours is plenty — the check itself is free.
+# Default: 480
+AiPlayerbot.Auction.Baseline.ReloadCheckMinutes = 480
+
+####################################################################################################
+# 8. LOOT
+####################################################################################################
+
+# Minimum size (in slots) for a surplus bag to be looted and sold on the
+# auction house. A "surplus" bag is one that is not an upgrade for any
+# equipped bag slot (the bot does not need to equip it).
+#
+# Set to 0 to disable — bots will loot only bags they can equip, exactly
+# like before this feature existed.
+#
+# Typical values: 12 (mid-tier), 16 (only decent bags), 18 (only endgame).
+# Default: 12
+AiPlayerbot.Loot.BagMinSlots = 12

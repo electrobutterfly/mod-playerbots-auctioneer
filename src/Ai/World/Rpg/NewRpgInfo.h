@@ -62,6 +62,15 @@ struct NewRpgInfo
         // arbitrage advisor and consulted for every queued sell.
         std::vector<uint32> protectedReagentIds;
         bool protectedReagentsComputed{false};
+
+        // Mail-collection sub-state. When the bot needs to walk away from
+        // the auctioneer to reach a mailbox:
+        //   0 = not walking
+        //   1 = walking to the mailbox
+        //   2 = walking back to the auctioneer after collecting
+        // While this is non-zero, the auctioneer-approach and HELLO logic
+        // is bypassed so the walk can actually complete.
+        uint8 mailboxWalkState{0};
     };
     // RPG_WANDER_NPC
     struct WanderNpc

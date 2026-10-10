@@ -452,6 +452,149 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
         bool const debugAuction = sPlayerbotAIConfig.debugAuction;
         float const distToPos = bot->GetDistance(data->pos);
 
+        // Mailbox walk sub-state. While set, the auctioneer-approach and
+        // HELLO logic is skipped entirely so the bot can actually reach
+        // the mailbox. The bot either completes the round trip or gives
+        // up; it does not return to normal flow mid-walk.
+        if (data->mailboxWalkState == 1)
+        {
+            ObjectGuid mailbox = PlayerbotAuction::FindMailboxInRange(botAI);
+            if (!mailbox.IsEmpty())
+            {
+                if (debugAuction)
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} relist: mailbox reached, collecting",
+                              bot->GetName());
+
+                // Arrived. Collect and queue the returned items for
+                // relisting, then commit to the walk back.
+                data->mailboxWalkState = 2;
+
+                std::vector<uint32> mailEntries;
+                if (PlayerbotAuction::BotHasExpiredAuctionMail(bot, mailEntries))
+                {
+                    std::vector<uint32> collected =
+                        PlayerbotAuction::TakeExpiredAuctionMail(botAI, mailbox);
+
+                    if (!collected.empty())
+                    {
+                        uint32 const maxRetries = sPlayerbotAIConfig.auctionMaxRelistRetries;
+                        bool const isRandomBot = sRandomPlayerbotMgr.IsRandomBot(bot);
+                        uint32 const botLow = bot->GetGUID().GetCounter();
+
+                        std::vector<uint32> relistable;
+                        for (uint32 entry : collected)
+                        {
+                            if (isRandomBot && maxRetries > 0)
+                            {
+                                std::string const key =
+                                    "auction.relist." + std::to_string(entry);
+                                uint32 const retries =
+                                    sRandomPlayerbotMgr.GetValue(botLow, key);
+                                if (retries >= maxRetries)
+                                    continue;
+                                sRandomPlayerbotMgr.SetValue(botLow, key, retries + 1);
+                            }
+                            relistable.push_back(entry);
+                        }
+
+                        for (uint32 entry : relistable)
+                        {
+                            if (std::find(data->returnedEntries.begin(),
+                                          data->returnedEntries.end(),
+                                          entry) == data->returnedEntries.end())
+                                data->returnedEntries.push_back(entry);
+                        }
+
+                        std::vector<ObjectGuid> relistSells;
+                        for (Item* it : botAI->GetInventoryItems())
+                        {
+                            if (relistSells.size() >=
+                                sPlayerbotAIConfig.auctionMaxSellsPerVisit)
+                                break;
+                            if (!it || !it->CanBeTraded())
+                                continue;
+                            if (std::find(relistable.begin(), relistable.end(),
+                                          it->GetEntry()) == relistable.end())
+                                continue;
+
+                            ItemTemplate const* p = it->GetTemplate();
+                            if (!p)
+                                continue;
+                            if (sPlayerbotAIConfig.IsAuctionExcludedItem(p->ItemId))
+                                continue;
+                            if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
+                                p->Class != ITEM_CLASS_TRADE_GOODS &&
+                                p->Class != ITEM_CLASS_RECIPE &&
+                                p->Class != ITEM_CLASS_CONSUMABLE &&
+                                sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId))
+                                continue;
+
+                            relistSells.push_back(it->GetGUID());
+                        }
+
+                        data->pendingSells.insert(data->pendingSells.begin(),
+                                                  relistSells.begin(),
+                                                  relistSells.end());
+
+                        if (debugAuction)
+                            LOG_ERROR("playerbots",
+                                      "[AH-TRACE] {} relist: collected {} items, queued {} for relist",
+                                      bot->GetName(), collected.size(), relistSells.size());
+                    }
+                }
+
+                return true;
+            }
+
+            // Still en route.
+            ObjectGuid nearest = PlayerbotAuction::FindNearestMailbox(botAI);
+            if (nearest.IsEmpty())
+            {
+                if (debugAuction)
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} relist: lost sight of mailbox, giving up",
+                              bot->GetName());
+                data->mailboxWalkState = 0;
+                data->mailChecked = true;
+                return true;
+            }
+
+            if (!bot->isMoving())
+            {
+                if (!MoveWorldObjectTo(nearest))
+                {
+                    if (debugAuction)
+                        LOG_ERROR("playerbots",
+                                  "[AH-TRACE] {} relist: cannot path to mailbox, giving up",
+                                  bot->GetName());
+                    data->mailboxWalkState = 0;
+                    data->mailChecked = true;
+                }
+            }
+            return true;
+        }
+
+        if (data->mailboxWalkState == 2)
+        {
+            if (distToPos < 5.0f)
+            {
+                data->mailboxWalkState = 0;
+                return true;
+            }
+
+            if (!bot->isMoving())
+            {
+                if (!MoveFarTo(data->pos))
+                {
+                    // Cannot path back. Clear state so the rest of the
+                    // visit still gets a chance to run.
+                    data->mailboxWalkState = 0;
+                }
+            }
+            return true;
+        }
+
         if (debugAuction && distToPos < 30.0f)
         {
             LOG_DEBUG("playerbots",
@@ -592,50 +735,29 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 ObjectGuid mailbox = PlayerbotAuction::FindMailboxInRange(botAI);
                 if (mailbox.IsEmpty())
                 {
-                    // Not in range. Try to walk to the nearest mailbox, but
-                    // only if there is enough bag space to hold the returned
-                    // items. Otherwise skip; the next AH visit will retry.
-                    ObjectGuid nearest = PlayerbotAuction::FindNearestMailbox(botAI);
-                    if (!nearest.IsEmpty())
+                    // Not in range. Commit to the mailbox walk if there is
+                    // enough bag space to hold the returned items. The
+                    // mailboxWalkState sub-state takes over on the next tick
+                    // and bypasses the auctioneer-approach and HELLO logic
+                    // until the round trip completes or fails.
+                    uint32 freeSlots = PlayerbotAuction::CountFreeBagSlots(bot);
+                    if (freeSlots < mailEntries.size())
                     {
-                        uint32 freeSlots = PlayerbotAuction::CountFreeBagSlots(bot);
-                        if (freeSlots >= mailEntries.size())
-                        {
-                            if (debugAuction)
-                            {
-                                LOG_ERROR("playerbots",
-                                          "[AH-TRACE] {} relist: mailbox out of range, walking",
-                                          bot->GetName());
-                            }
-                            if (MoveWorldObjectTo(nearest))
-                            {
-                                data->mailChecked = false;  // retry from closer
-                                return true;
-                            }
-                            if (debugAuction)
-                            {
-                                LOG_ERROR("playerbots",
-                                          "[AH-TRACE] {} relist: cannot path to mailbox, skipping this visit",
-                                          bot->GetName());
-                            }
-                        }
-                        else
-                        {
-                            if (debugAuction)
-                            {
-                                LOG_ERROR("playerbots",
-                                          "[AH-TRACE] {} relist: bag space insufficient "
-                                          "(need {} slots, have {}), skipping this visit",
-                                          bot->GetName(), mailEntries.size(), freeSlots);
-                            }
-                        }
+                        if (debugAuction)
+                            LOG_ERROR("playerbots",
+                                      "[AH-TRACE] {} relist: bag space insufficient "
+                                      "(need {} slots, have {}), skipping this visit",
+                                      bot->GetName(), mailEntries.size(), freeSlots);
+                        return false;
                     }
-                    else if (debugAuction)
-                    {
+
+                    if (debugAuction)
                         LOG_ERROR("playerbots",
-                                  "[AH-TRACE] {} relist: no mailbox visible",
-                                  bot->GetName());
-                    }
+                                  "[AH-TRACE] {} relist: {} returned items, walking to mailbox",
+                                  bot->GetName(), mailEntries.size());
+
+                    data->mailboxWalkState = 1;
+                    return true;
                 }
                 else
                 {

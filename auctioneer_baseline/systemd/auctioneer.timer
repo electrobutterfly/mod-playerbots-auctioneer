@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh the mod-playerbots-auctioneer baseline every 12 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=12h
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
