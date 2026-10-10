@@ -926,10 +926,16 @@ bool AhAction::Execute(Event event)
         return false;
     }
 
-    auto reply = [&](std::string const& msg) {
+        auto reply = [&](std::string const& msg) {
         bot->Whisper(msg, LANG_UNIVERSAL, owner);
         LOG_ERROR("playerbots", "[AH-DIAG] reply to {}: {}", owner->GetName(), msg);
     };
+
+    if (!sPlayerbotAIConfig.allowPlayerAuctionCommands)
+    {
+        reply("Auction commands are disabled on this server.");
+        return false;
+    }
 
     std::string const text = event.getParam();
     if (text.empty())
