@@ -83,6 +83,8 @@ public:
         creators["gb"] = &ChatTriggerContext::gb;
         creators["gbank"] = &ChatTriggerContext::gb;
         creators["bank"] = &ChatTriggerContext::bank;
+        // Add Auctioneer
+        creators["ah"] = &ChatTriggerContext::ah;
         creators["follow"] = &ChatTriggerContext::follow;
         creators["move from group"] = &ChatTriggerContext::move_from_group;
         creators["stay"] = &ChatTriggerContext::stay;
@@ -210,6 +212,8 @@ private:
     static Trigger* move_from_group(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "move from group"); }
     static Trigger* gb(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "gb"); }
     static Trigger* bank(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "bank"); }
+    // Add Auctioneer
+    static Trigger* ah(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "ah"); }
     static Trigger* help(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "help"); }
     static Trigger* buff(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "buff"); }
     static Trigger* emote(PlayerbotAI* botAI) { return new ChatCommandTrigger(botAI, "emote"); }

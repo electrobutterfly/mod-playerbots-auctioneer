@@ -6,6 +6,7 @@
 
 #include "NewRpgAction.h"
 #include "AreaDefines.h"
+#include "AuctionHouseMgr.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -24,6 +25,7 @@
 #include "Player.h"
 #include "PlayerbotAI.h"
 #include "PlayerbotTextMgr.h"
+#include "Playerbots.h"
 #include "QuestDef.h"
 #include "Random.h"
 #include "SharedDefines.h"
@@ -31,7 +33,6 @@
 #include "TravelMgr.h"
 #include "WaypointMovementGenerator.h"
 #include "G3D/Vector2.h"
-#include "AuctionHouseMgr.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -912,4 +913,154 @@ void NewRpgTravelFlightAction::ContinueCrossMapTaxi()
     flight->SkipCurrentNode();
 
     bot->TeleportTo(nextNode->map_id, node->x, node->y, node->z, bot->GetOrientation(), TELE_TO_NOT_LEAVE_TAXI);
+}
+
+bool AhAction::Execute(Event event)
+{
+    LOG_ERROR("playerbots", "[AH-DIAG] AhAction::Execute fired, param='{}'", event.getParam());
+
+    Player* owner = event.getOwner();
+    if (!owner)
+    {
+        LOG_ERROR("playerbots", "[AH-DIAG] no owner on event, aborting");
+        return false;
+    }
+
+    auto reply = [&](std::string const& msg) {
+        bot->Whisper(msg, LANG_UNIVERSAL, owner);
+        LOG_ERROR("playerbots", "[AH-DIAG] reply to {}: {}", owner->GetName(), msg);
+    };
+
+    std::string const text = event.getParam();
+    if (text.empty())
+    {
+        reply("Usage: ah bid <auctionId> <priceCopper>");
+        return false;
+    }
+
+    std::istringstream iss(text);
+    std::string subcommand;
+    iss >> subcommand;
+
+    if (subcommand == "bid")
+    {
+        uint32 auctionId = 0;
+        uint32 price = 0;
+        if (!(iss >> auctionId >> price) || !auctionId || !price)
+        {
+            reply("Usage: ah bid <auctionId> <priceCopper>");
+            return false;
+        }
+
+        // Find any auctioneer within interaction range.
+        Creature* auctioneer = nullptr;
+        GuidVector const npcs = AI_VALUE(GuidVector, "nearest npcs");
+        for (ObjectGuid const& guid : npcs)
+        {
+            Creature* creature = botAI->GetCreature(guid);
+            if (!creature)
+                continue;
+            if (!creature->HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER))
+                continue;
+            if (bot->GetDistance(creature) > INTERACTION_DISTANCE)
+                continue;
+            auctioneer = creature;
+            break;
+        }
+
+        if (!auctioneer)
+        {
+            reply("No auctioneer within interaction range. Walk to one first.");
+            return false;
+        }
+
+                // -- diagnostic: check every precondition the handler will check --
+        Creature* verify = bot->GetNPCIfCanInteractWith(auctioneer->GetGUID(), UNIT_NPC_FLAG_AUCTIONEER);
+        LOG_ERROR("playerbots", "[AH-DIAG] GetNPCIfCanInteractWith: {}",
+                  verify ? "OK" : "NULL");
+        LOG_ERROR("playerbots", "[AH-DIAG] bot money={} needed={} alive={} inWorld={}",
+                  bot->GetMoney(), price,
+                  bot->IsAlive() ? "yes" : "no",
+                  bot->IsInWorld() ? "yes" : "no");
+
+        AuctionHouseEntry const* ahEntry =
+            AuctionHouseMgr::GetAuctionHouseEntryFromFactionTemplate(auctioneer->GetFaction());
+        if (!ahEntry)
+        {
+            LOG_ERROR("playerbots", "[AH-DIAG] no AuctionHouseEntry for faction {}",
+                      auctioneer->GetFaction());
+        }
+        else
+        {
+            AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction());
+            if (!ahObj)
+            {
+                LOG_ERROR("playerbots", "[AH-DIAG] no AuctionHouseObject");
+            }
+            else
+            {
+                AuctionEntry* auction = ahObj->GetAuction(auctionId);
+                if (!auction)
+                {
+                    LOG_ERROR("playerbots", "[AH-DIAG] auction {} NOT FOUND", auctionId);
+                }
+                else
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-DIAG] auction {} found: owner={} startbid={} bid={} buyout={}",
+                              auctionId, auction->owner.ToString(),
+                              auction->startbid, auction->bid, auction->buyout);
+                    LOG_ERROR("playerbots", "[AH-DIAG] owner is bot? {}",
+                              auction->owner == bot->GetGUID() ? "YES (this blocks the bid)" : "no");
+                }
+            }
+        }
+        // -- end diagnostic --
+        
+        // Reject bids that aren't strictly greater than the current bid.
+        // The server-side handler silently drops these; catching it here
+        // gives a useful reply instead of silence.
+        if (ahEntry)
+        {
+            if (AuctionHouseObject* guardObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction()))
+            {
+                if (AuctionEntry* guardAuction = guardObj->GetAuction(auctionId))
+                {
+                    if (price <= guardAuction->bid || price < guardAuction->startbid)
+                    {
+                        std::ostringstream why;
+                        why << "Bid rejected: must exceed current bid (" << guardAuction->bid
+                            << ") and meet startbid (" << guardAuction->startbid << ").";
+                        reply(why.str());
+                        return false;
+                    }
+                }
+            }
+        }
+
+        WorldPacket packet(CMSG_AUCTION_PLACE_BID);
+        packet << auctioneer->GetGUID();
+        packet << uint32(auctionId);
+        packet << uint32(price);
+        packet.rpos(0);
+        bot->GetSession()->HandleAuctionPlaceBid(packet);
+
+        std::ostringstream out;
+        out << "Sent bid: auctionId=" << auctionId
+            << " price=" << price << " copper to " << auctioneer->GetName();
+        reply(out.str());
+
+        if (sPlayerbotAIConfig.debugAuction)
+        {
+            LOG_ERROR("playerbots",
+                      "[AH-TRACE] {} sent bid auctionId={} price={} to {} (entry {})",
+                      bot->GetName(), auctionId, price,
+                      auctioneer->GetName(), auctioneer->GetEntry());
+        }
+
+        return true;
+    }
+
+    reply("Unknown ah subcommand. Usage: ah bid <auctionId> <priceCopper>");
+    return false;
 }
