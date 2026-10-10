@@ -11,11 +11,11 @@
 </div>
 # Playerbots-Auctioneer
 
-`Playerbots-Auctioneer` is an heavily modified [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) fork for the Azerothcore-Playerbots fork which provides a auction-house subsystem.
+`Playerbots-Auctioneer` is an heavily modified [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) fork which provides a auction-house subsystem.
 
-Out of the box, mod-playerbots bots do not touch the Auction House. They do not buy, they do not sell, they do not bid, they do not walk to an auctioneer, they do not collect mail. On a playerbot-only server the AH is populated by whatever the server operator places there by hand, or by an auctionhouse plugin if it is enabled — it is not an economy driven by the bot population.
+Out of the box, mod-playerbots bots do not touch the Auction House. They do not buy, they do not sell, they do not bid, they do not walk to an auctioneer, they do not collect mail. On a playerbot-only server the AH is populated by whatever the server operator places there by hand, or by mod-ah-bot-plus if it is enabled — it is not an economy driven by the bot population.
 
-`Playerbots-Auctioneer` gives the bot population a complete auction-house economy of its own. Every bot walks to the AH, sells his by his professions crafted stuff and surplus inventory, buys items it needs, bids on and defends listings it wants, collects expired mail, and relists returned items — the same lifecycle a human player follows. The economy runs **autonomously**: no human players are required for the AH to fill up, and the buyer and seller features of mod-ah-bot-plus or similar plugins do not need to be enabled for the bots to trade with each other.
+`Playerbots-Auctioneer` gives the bot population a complete auction-house economy of its own. Every bot walks to the AH, sells his by his professions crafted stuff and surplus inventory, buys items it needs, bids on and defends listings it wants, collects expired mail, and relists returned items — the same lifecycle a human player follows. The economy runs **autonomously**: no human players are required for the AH to fill up, and the buyer and seller features of mod-ah-bot-plus do not need to be enabled for the bots to trade with each other.
 
 ---
 
@@ -65,7 +65,7 @@ The auctioneer depends on the mod-ah-bot-plus module. Install both inside the `m
 cd azerothcore-wotlk/modules
 
 # Playerbots-Auctioneer — the auction-house subsystem (this module)
-git clone <your-auctioneer-repo-url> --branch=master
+git clone https://github.com/electrobutterfly/mod-playerbots-auctioneer.git
 
 # AH Bot Plus — the auction-house bot mod the auctioneer is benchmarked
 # against. Pinned to a specific revision for compatibility.
@@ -484,13 +484,13 @@ The tool uses two independent connections:
 - **`[world]`** — read-only. One query: `SELECT entry, class, Quality FROM item_template`. This is the source of the item filter (only items your realm actually has are imported) and the (class, quality) classification used by the category table.
 - **`[character]`** — read-write. Where the baseline tables live. The tool never touches `acore_world` beyond the one `item_template` read, and never touches `acore_playerbots` at all.
 
-They can be the same user or different users, on the same host or on different hosts. The config handles every combination through the inheritance mechanism described in section 5 above.
+They can be the same user or different users, on the same host or on different hosts. The config handles every combination through the inheritance mechanism described in section 5 above.[](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls)
 
 ------
 
 ## Contributing
 
-Issues and pull requests are welcome. When filing a bug against the auctioneer specifically, please attach:
+[Issues](https://github.com/electrobutterfly/mod-playerbots-auctioneer/issues) and [pull requests](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls) are welcome. When filing a bug against the auctioneer specifically, please attach:
 
 - The `[AH-TRACE]` output for a bot exhibiting the problem.
 
@@ -514,25 +514,4 @@ The baseline data format and the price-band approach are adapted from [mod-aucti
 
 The seller and buyer pricing comparison logic is built against [mod-ah-bot-plus](https://github.com/NathanHandley/mod-ah-bot-plus), which provides the reference `CalculateItemValue` implementation that this subsystem benchmarks against.
 
-The auction-house subsystem builds on the movement, chat, and personality infrastructure of [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots), without which none of this would be possible. [Here](AUTHORS-OLD.md) you will find all the Authors which contributed to the original playerbots project.
-
-------
-
-## Modification notice
-
-This repository is a modified version of
-[mod-playerbots/mod-playerbots](https://github.com/mod-playerbots/mod-playerbots).
-Modifications were made by electrobutterfly starting in 2026.
-The full set of changes is visible in the commit history between the
-upstream merge-base and the current branch tip.
-
-------
-
-## License
-
-This project is licensed under the **GNU General Public License v2.0**
-(GPL-2.0), inherited from [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots).
-See the [LICENSE](LICENSE) file for the full text.
-
-As a derivative work, this repository must remain under GPL-2.0.
-
+The auction-house subsystem builds on the movement, chat, and personality infrastructure of [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots), without which none of this would be possible.
