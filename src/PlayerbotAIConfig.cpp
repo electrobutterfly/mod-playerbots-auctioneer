@@ -511,6 +511,11 @@ bool PlayerbotAIConfig::Initialize()
         sConfigMgr->GetOption<uint32>("Playerbots.Auction.BuyPriceMultiplierMax", 20);
     if (auctionBuyPriceMultiplierMax < auctionBuyPriceMultiplierMin)
         auctionBuyPriceMultiplierMax = auctionBuyPriceMultiplierMin;
+        
+    auctionBuyScanChancePercent =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.BuyScanChancePercent", 10);
+    if (auctionBuyScanChancePercent > 100)
+        auctionBuyScanChancePercent = 100;
 
     // Seller preference
     auctionSellerPreferenceAggression =

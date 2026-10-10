@@ -18,7 +18,7 @@ namespace PlayerbotAuction
         AhBot      = 3
     };
 
-    struct BuyCandidate
+        struct BuyCandidate
     {
         AuctionEntry* auction = nullptr;
         uint32 maxWillingPrice = 0;
@@ -26,6 +26,7 @@ namespace PlayerbotAuction
         uint32 buyoutAmount    = 0;
         bool   doBuyout        = false;
         SellerType seller      = SellerType::Unknown;
+        uint8  usageTier       = 255;  // lower = higher priority
     };
 
     // Classify the seller of a given auction. Uses the configured
