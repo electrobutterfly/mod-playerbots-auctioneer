@@ -2594,6 +2594,16 @@ Playerbots.RandomChangeMultiplier = 1
 # Default: 0 (disabled)
 AiPlayerbot.DebugAuction = 0
 
+# Allow players to command bots to interact with the auction house
+# via whisper commands ("ah bid", "ah sell"). This is a debug/testing
+# switch; when disabled, only the bot's own AI can trigger auction
+# activity, and player whispers are ignored.
+# 0 = disabled (default, prevents player abuse)
+# 1 = enabled (players can drive the AH commands)
+# Reloadable via the playerbots config reload command.
+# Default: 0
+AiPlayerbot.AllowPlayerAuctionCommands = 0
+
 # Tell which spell is avoiding (experimental)
 # Default: 0 (disabled)
 Playerbots.TellWhenAvoidAoe = 0

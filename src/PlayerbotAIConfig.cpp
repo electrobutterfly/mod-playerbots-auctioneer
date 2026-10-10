@@ -409,6 +409,8 @@ bool PlayerbotAIConfig::Initialize()
     LogInGroupOnly = sConfigMgr->GetOption<bool>("Playerbots.LogInGroupOnly", true);
     LogValuesPerTick = sConfigMgr->GetOption<bool>("Playerbots.LogValuesPerTick", false);
     debugAuction = sConfigMgr->GetOption<bool>("Playerbots.DebugAuction", false);
+    allowPlayerAuctionCommands =
+        sConfigMgr->GetOption<bool>("Playerbots.AllowPlayerAuctionCommands", false);
     fleeingEnabled = sConfigMgr->GetOption<bool>("Playerbots.FleeingEnabled", true);
     SummonAtInnkeepersEnabled = sConfigMgr->GetOption<bool>("Playerbots.SummonAtInnkeepersEnabled", true);
     RandomBotMinLevel = sConfigMgr->GetOption<int32>("Playerbots.RandomBotMinLevel", 1);
