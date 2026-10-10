@@ -11,6 +11,7 @@
 #include "AiObjectContext.h"
 #include "ArenaTeam.h"
 #include "ArenaTeamMgr.h"
+#include "AuctionHelpers.h"
 #include "DBCStores.h"
 #include "DBCStructure.h"
 #include "GuildMgr.h"
@@ -825,6 +826,24 @@ void PlayerbotFactory::Prepare()
 
 void PlayerbotFactory::Randomize(bool incremental)
 {
+    // A full randomize throws away everything this bot owns, so the auctions
+    // it still has open and mail it has not yet collected would leak. Cancel
+    // its auctions (refunding bidders) and wipe its mailbox first, otherwise
+    // the returned-auction pipeline will try to relist items the bot never
+    // looted, and buyers will win auctions from a character that no longer
+    // exists in a meaningful sense.
+    if (!incremental)
+    {
+        uint32 const cancelled = PlayerbotAuction::RemoveAllBotAuctions(bot);
+        uint32 const mailsCleaned = PlayerbotAuction::CleanupBotMail(bot);
+        if ((cancelled || mailsCleaned) && sPlayerbotAIConfig.debugAuction)
+        {
+            LOG_ERROR("playerbots",
+                      "[AH-TRACE] {} reset: cancelled {} auctions, cleaned {} mails",
+                      bot->GetName(), cancelled, mailsCleaned);
+        }
+    }
+
     // if (sPlayerbotAIConfig.DisableRandomLevels)
     //     return;
 

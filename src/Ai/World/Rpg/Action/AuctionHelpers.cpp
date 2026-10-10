@@ -1,7 +1,10 @@
 #include "AuctionHelpers.h"
 #include "AiObjectContext.h"
+#include "AuctionHouseMgr.h"
 #include "Creature.h"
+#include "DatabaseEnv.h"
 #include "Item.h"
+#include "Mail.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
@@ -92,9 +95,87 @@ bool SendSellItem(Player* bot, Creature* auctioneer, Item* item,
     packet << uint32(bidCopper);
     packet << uint32(buyoutCopper);
     packet << uint32(durationMinutes);
-    packet.rpos(0);
+        packet.rpos(0);
     bot->GetSession()->HandleAuctionSellItem(packet);
     return true;
+}
+
+uint32 CountActiveListings(Player* bot)
+{
+    if (!bot)
+        return 0;
+
+    ObjectGuid const botGuid = bot->GetGUID();
+    uint32 count = 0;
+
+    if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction()))
+    {
+        for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)
+        {
+            AuctionEntry* entry = it->second;
+            if (entry && entry->owner == botGuid)
+                ++count;
+        }
+    }
+    return count;
+}
+
+uint32 RemoveAllBotAuctions(Player* bot)
+{
+    if (!bot)
+        return 0;
+
+    ObjectGuid const botGuid = bot->GetGUID();
+    AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction());
+    if (!ahObj)
+        return 0;
+
+    std::vector<AuctionEntry*> toRemove;
+    for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)
+    {
+        AuctionEntry* entry = it->second;
+        if (entry && entry->owner == botGuid)
+            toRemove.push_back(entry);
+    }
+
+    if (toRemove.empty())
+        return 0;
+
+    auto trans = CharacterDatabase.BeginTransaction();
+    for (AuctionEntry* entry : toRemove)
+    {
+        if (!entry->bidder.IsEmpty())
+            sAuctionMgr->SendAuctionCancelledToBidderMail(entry, trans);
+        entry->DeleteFromDB(trans);
+        sAuctionMgr->RemoveAItem(entry->item_guid, true, &trans);
+        ahObj->RemoveAuction(entry);
+    }
+    CharacterDatabase.CommitTransaction(trans);
+    return static_cast<uint32>(toRemove.size());
+}
+
+uint32 CleanupBotMail(Player* bot)
+{
+    if (!bot)
+        return 0;
+
+    ObjectGuid::LowType const botLow = bot->GetGUID().GetCounter();
+
+    std::vector<uint32> ids;
+    for (PlayerMails::const_iterator it = bot->GetMails().begin(); it != bot->GetMails().end(); ++it)
+    {
+        Mail* m = *it;
+        if (m && m->state != MAIL_STATE_DELETED)
+            ids.push_back(m->messageID);
+    }
+
+    for (uint32 id : ids)
+        bot->RemoveMail(id);
+
+    CharacterDatabase.Execute("DELETE FROM mail WHERE receiver = {}", botLow);
+    CharacterDatabase.Execute("DELETE FROM mail_items WHERE receiver = {}", botLow);
+
+    return static_cast<uint32>(ids.size());
 }
 
 } // namespace PlayerbotAuction

@@ -17,6 +17,12 @@ namespace PlayerbotAuction
     // Never reads mail from players. Does not mutate mail state.
     bool BotHasExpiredAuctionMail(Player* bot, std::vector<uint32>& outEntries);
 
+    // Add Auctioneer
+    // Diagnostic-only. Logs a one-line breakdown of everything in the bot's
+    // mailbox when debugAuction && auctionRunAnalysis are both on. Safe to
+    // call on every AH visit; does not mutate anything.
+    void LogMailboxContents(Player* bot);
+
     // Nearest mailbox within INTERACTION_DISTANCE of the bot, or empty.
     ObjectGuid FindMailboxInRange(PlayerbotAI* botAI);
 

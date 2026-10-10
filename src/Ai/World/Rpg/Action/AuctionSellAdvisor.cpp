@@ -139,7 +139,6 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
         basePrice = vendor * 10;
     }
 
-    // Add Auctioneer
     // Relist undercuts the current market more aggressively than a fresh listing.
     uint32 minPct = isRelist ? sPlayerbotAIConfig.auctionRelistUndercutPercentMin
                              : sPlayerbotAIConfig.auctionSellUndercutPercentMin;
@@ -163,6 +162,9 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
 
 SellCandidate FindItemToSell(PlayerbotAI* botAI)
 {
+    LOG_ERROR("playerbots", "[AH-TRACE] FindItemToSell CALLED bot={}",
+              (botAI && botAI->GetBot()) ? botAI->GetBot()->GetName() : "<null>");
+
     SellCandidate result;
     if (!botAI)
         return result;
@@ -176,6 +178,18 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
 
     uint32 const minQuality = sPlayerbotAIConfig.auctionMinSellQuality;
     uint32 const minValue = sPlayerbotAIConfig.auctionMinSellValueCopper;
+
+    if (sPlayerbotAIConfig.debugAuction)
+    {
+        LOG_ERROR("playerbots",
+                  "[AH-TRACE] {} FindItemToSell cfg: minQuality={} minValue={} sellEnabled={} protectUseful={} protectBound={} protectQuest={} protectReagents={}",
+                  bot->GetName(), minQuality, minValue,
+                  sPlayerbotAIConfig.auctionEnableSelling ? 1 : 0,
+                  sPlayerbotAIConfig.auctionProtectUsefulItems ? 1 : 0,
+                  sPlayerbotAIConfig.auctionProtectBoundItems ? 1 : 0,
+                  sPlayerbotAIConfig.auctionProtectQuestItems ? 1 : 0,
+                  sPlayerbotAIConfig.auctionProtectClassReagents ? 1 : 0);
+    }
     bool const largeBags = BotHasLargeBags(bot);
     uint32 const keepHealth =
         largeBags ? sPlayerbotAIConfig.auctionKeepHealthPotionsLargeBags
@@ -212,14 +226,13 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
     };
     std::vector<Candidate> candidates;
 
-    // Add Auctioneer
     // Per-reason rejection counters. Only accumulate and emit when both
     // debugAuction and auctionRunAnalysis are on.
     bool const runAnalysis =
         sPlayerbotAIConfig.debugAuction && sPlayerbotAIConfig.auctionRunAnalysis;
     uint32 scanned = 0, rejTrade = 0, rejQuality = 0, rejEquipped = 0, rejValue = 0;
     uint32 rejQuest = 0, rejBound = 0, rejFullStack = 0, rejClassReagent = 0;
-    uint32 rejUseful = 0, rejPotion = 0;
+    uint32 rejUseful = 0, rejPotion = 0, rejVendorSold = 0;
 
     for (Item* it : botAI->GetInventoryItems())
     {
@@ -235,6 +248,21 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         if (p->Quality < minQuality) { if (runAnalysis) ++rejQuality; continue; }
         if (it->IsEquipped()) { if (runAnalysis) ++rejEquipped; continue; }
         if (p->SellPrice < minValue) { if (runAnalysis) ++rejValue; continue; }
+
+        // Vendor junk filter: never list an item that any NPC vendor stocks,
+        // unless it is a trade good, recipe, or consumable. Those three classes
+        // sometimes have a BuyPrice on a limited-supply vendor while still being
+        // legitimate AH items (e.g. rare recipes from a quest vendor). Weapons,
+        // armor, and misc tools with a vendor stock are the ones we want gone.
+        if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
+            sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId) &&
+            p->Class != ITEM_CLASS_TRADE_GOODS &&
+            p->Class != ITEM_CLASS_RECIPE &&
+            p->Class != ITEM_CLASS_CONSUMABLE)
+        {
+            if (runAnalysis) ++rejVendorSold;
+            continue;
+        }
 
         if (sPlayerbotAIConfig.auctionProtectQuestItems && p->Class == ITEM_CLASS_QUEST)
         {
@@ -311,18 +339,28 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         candidates.push_back({it, value});
     }
 
-    // Add Auctioneer
     if (runAnalysis)
     {
+        // Show what each equipped bag slot currently holds, so we can tell
+        // whether bots actually have their starter bags and how big they are.
+        // Empty slots read as 0.
+        std::string bagSizes;
+        for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
+        {
+            Bag* bag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+            bagSizes += bag ? std::to_string(bag->GetBagSize()) : "0";
+            bagSizes += ",";
+        }
+
         LOG_ERROR("playerbots",
                   "[AH-TRACE] {} sellpick: scanned={} candidates={} "
                   "rejTrade={} rejQuality={} rejEquipped={} rejValue={} "
                   "rejQuest={} rejBound={} rejFullStack={} rejClassReagent={} "
-                  "rejUseful={} rejPotion={}",
+                  "rejUseful={} rejPotion={} rejVendorSold={} bags=[{}]",
                   bot->GetName(), scanned, candidates.size(),
                   rejTrade, rejQuality, rejEquipped, rejValue,
                   rejQuest, rejBound, rejFullStack, rejClassReagent,
-                  rejUseful, rejPotion);
+                  rejUseful, rejPotion, rejVendorSold, bagSizes);
     }
 
     if (candidates.empty())

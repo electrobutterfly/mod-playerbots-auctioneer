@@ -512,6 +512,14 @@ void RandomPlayerbotFactory::CreateRandomBots()
         // Get the character database name dynamically (used in same-server subqueries below)
         std::string characterDBName = CharacterDatabase.GetConnectionInfo()->database;
 
+        // Delete every auction owned by a bot character before deleting the
+        // characters themselves. The subquery has to run first: once the
+        // characters are gone, itemowner resolves to nothing and the auctions
+        // are silently orphaned in the auctionhouse table.
+        CharacterDatabase.Execute(
+            "DELETE FROM auctionhouse WHERE itemowner IN "
+            "(SELECT guid FROM characters WHERE account IN (" + botAccountIds + "))");
+
         // Delete all characters from bot accounts (by explicit id list, no cross-database subquery)
         CharacterDatabase.Execute("DELETE FROM characters WHERE account IN (" + botAccountIds + ")");
 
