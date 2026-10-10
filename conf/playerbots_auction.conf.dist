@@ -200,3 +200,18 @@ AiPlayerbot.Auction.ProtectUsefulItems = 1
 # Non-stackable items (max stack 1) are always eligible.
 # Default: 0 (partial stacks are allowed, current behavior)
 AiPlayerbot.Auction.SellFullStacksOnly = 0
+
+# Maximum number of returned-auction items a bot will relist in a single
+# auction house visit, in addition to the one normal sell pick per visit.
+# Returned items beyond this cap wait for the next AH visit.
+# 0 disables multi-relist (only the normal single sell pick per visit).
+# Default: 3
+AiPlayerbot.Auction.MaxSellsPerVisit = 3
+
+# Undercut percent range used when relisting an item that came back from an
+# expired auction. This replaces the normal SellUndercutPercentMin/Max for
+# those items (it still undercuts the currently-cheapest matching listing).
+# Default: 10 (min), 20 (max)
+AiPlayerbot.Auction.RelistUndercutPercentMin = 10
+AiPlayerbot.Auction.RelistUndercutPercentMax = 20
+

@@ -95,7 +95,7 @@ bool IsProtectedClassReagent(Player* bot, Item* item)
     }
 }
 
-void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& outBuyout)
+void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& outBuyout, bool isRelist)
 {
     outBid = 0;
     outBuyout = 0;
@@ -139,8 +139,12 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
         basePrice = vendor * 10;
     }
 
-    uint32 minPct = sPlayerbotAIConfig.auctionSellUndercutPercentMin;
-    uint32 maxPct = sPlayerbotAIConfig.auctionSellUndercutPercentMax;
+    // Add Auctioneer
+    // Relist undercuts the current market more aggressively than a fresh listing.
+    uint32 minPct = isRelist ? sPlayerbotAIConfig.auctionRelistUndercutPercentMin
+                             : sPlayerbotAIConfig.auctionSellUndercutPercentMin;
+    uint32 maxPct = isRelist ? sPlayerbotAIConfig.auctionRelistUndercutPercentMax
+                             : sPlayerbotAIConfig.auctionSellUndercutPercentMax;
     if (maxPct < minPct)
         maxPct = minPct;
     uint32 undercutPct = urand(minPct, maxPct);

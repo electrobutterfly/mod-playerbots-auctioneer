@@ -1247,10 +1247,9 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                     buyCand = PlayerbotAuction::FindAuctionToBuy(botAI);
                 }
 
-                ObjectGuid sellGuid = sellCand.item ? sellCand.item->GetGUID() : ObjectGuid::Empty;
-                uint32 sellBid      = sellCand.suggestedBid;
-                uint32 sellBuyout   = sellCand.suggestedBuyout;
-                uint32 sellDur      = sellCand.item ? sPlayerbotAIConfig.auctionSellDurationMinutes : 0;
+                                std::vector<ObjectGuid> initialSells;
+                if (sellCand.item)
+                    initialSells.push_back(sellCand.item->GetGUID());
 
                 uint32 buyAuctionId = 0;
                 uint32 buyPrice     = 0;
@@ -1266,14 +1265,14 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                 // even when nothing new to sell or buy was found.
                 bool const hasTrackedBids = !botAI->trackedAuctions.empty();
 
-                if (sellGuid.IsEmpty() && buyAuctionId == 0 && !hasTrackedBids)
+                if (initialSells.empty() && buyAuctionId == 0 && !hasTrackedBids)
                 {
                     botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry);
                 }
                 else
                 {
                     botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry,
-                                                        sellGuid, sellBid, sellBuyout, sellDur,
+                                                        initialSells,
                                                         buyAuctionId, buyPrice, buyMaxWilling);
                 }
                 return true;

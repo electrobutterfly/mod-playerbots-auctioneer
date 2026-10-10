@@ -22,10 +22,7 @@ void NewRpgInfo::ChangeToGoCamp(WorldPosition pos)
 
 // Add Auctioneer
 void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
-                                      ObjectGuid sellItemGuid,
-                                      uint32 sellBid,
-                                      uint32 sellBuyout,
-                                      uint32 sellDuration,
+                                      std::vector<ObjectGuid> const& pendingSells,
                                       uint32 buyAuctionId,
                                       uint32 buyPrice,
                                       uint32 buyMaxWilling)
@@ -35,11 +32,9 @@ void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
     data_go.pos = pos;
     data_go.auctioneerEntry = auctioneerEntry;
     data_go.lastReach = 0;
-    data_go.sellItemGuid = sellItemGuid;
-    data_go.sellBid = sellBid;
-    data_go.sellBuyout = sellBuyout;
-    data_go.sellDuration = sellDuration;
-    data_go.sellDone = false;
+    data_go.mailChecked = false;
+    data_go.pendingSells = pendingSells;
+    data_go.returnedEntries.clear();
     data_go.buyAuctionId = buyAuctionId;
     data_go.buyPrice = buyPrice;
     data_go.buyMaxWilling = buyMaxWilling;
