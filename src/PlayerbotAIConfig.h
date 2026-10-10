@@ -277,8 +277,42 @@ public:
     uint32 RandomBotTeleLowerLevel, RandomBotTeleHigherLevel;
     std::map<uint32, std::pair<uint32, uint32>> ZoneBrackets;
     bool LogInGroupOnly, LogValuesPerTick;
+
+    // Add Auctioneer
     bool debugAuction;
     bool allowPlayerAuctionCommands;
+
+    // Auction automation (see playerbots_auction.conf)
+    bool auctionEnabled;
+    uint32 auctionVisitMinMinutes;
+    uint32 auctionVisitMaxMinutes;
+
+    bool auctionEnableSelling;
+    uint32 auctionSellUndercutPercentMin;
+    uint32 auctionSellUndercutPercentMax;
+    uint32 auctionSellDurationMinutes;
+    uint32 auctionMinSellValueCopper;
+    uint32 auctionMinSellQuality;
+    uint32 auctionKeepHealthPotions;
+    uint32 auctionKeepManaPotions;
+    uint32 auctionKeepHealthPotionsLargeBags;
+    uint32 auctionKeepManaPotionsLargeBags;
+    uint32 auctionLargeBagThreshold;
+    bool auctionProtectClassReagents;
+    bool auctionProtectQuestItems;
+    bool auctionProtectBoundItems;
+
+    bool auctionEnableBuying;
+    uint32 auctionMaxSpendPercentPerVisit;
+    bool auctionBuyGearUpgrades;
+    bool auctionBuyBiggerBags;
+    bool auctionBuyConsumables;
+    bool auctionBuyProfessionMaterials;
+    bool auctionBuyQuestItems;
+
+    uint32 auctionStartingBidPercent;
+    uint32 auctionBidIncrementPercent;
+    bool auctionAllowBuyout;
     bool fleeingEnabled;
     bool SummonAtInnkeepersEnabled;
     std::string CombatStrategies, NonCombatStrategies;

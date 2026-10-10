@@ -74,7 +74,7 @@ void NewRpgStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
             }
         )
     );
-    triggers.push_back(
+triggers.push_back(
         new TriggerNode(
             "do gather status",
             {
@@ -82,15 +82,18 @@ void NewRpgStrategy::InitTriggers(std::vector<TriggerNode*>& triggers)
             }
         )
     );
-    // Auctioneer subsystem (local fork)
-    triggers.push_back(
-        new TriggerNode(
-            "go auctioneer status",
-            {
-                NextAction("new rpg go auctioneer", 3.0f)
-            }
-        )
-    );
+    // Add Auctioneer
+    if (sPlayerbotAIConfig.auctionEnabled)
+    {
+        triggers.push_back(
+            new TriggerNode(
+                "go auctioneer status",
+                {
+                    NextAction("new rpg go auctioneer", 3.0f)
+                }
+            )
+        );
+    }
 }
 
 void NewRpgStrategy::InitMultipliers(std::vector<Multiplier*>&)

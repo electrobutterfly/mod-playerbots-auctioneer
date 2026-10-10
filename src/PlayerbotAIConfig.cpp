@@ -411,6 +411,76 @@ bool PlayerbotAIConfig::Initialize()
     debugAuction = sConfigMgr->GetOption<bool>("Playerbots.DebugAuction", false);
     allowPlayerAuctionCommands =
         sConfigMgr->GetOption<bool>("Playerbots.AllowPlayerAuctionCommands", false);
+
+    // Auction automation (see playerbots_auction.conf)
+    auctionEnabled = sConfigMgr->GetOption<bool>("Playerbots.Auction.Enabled", false);
+
+    auctionVisitMinMinutes = sConfigMgr->GetOption<uint32>("Playerbots.Auction.VisitMinMinutes", 60);
+    auctionVisitMaxMinutes = sConfigMgr->GetOption<uint32>("Playerbots.Auction.VisitMaxMinutes", 240);
+    if (auctionVisitMaxMinutes < auctionVisitMinMinutes)
+        auctionVisitMaxMinutes = auctionVisitMinMinutes;
+
+    auctionEnableSelling = sConfigMgr->GetOption<bool>("Playerbots.Auction.EnableSelling", true);
+    auctionSellUndercutPercentMin =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellUndercutPercentMin", 5);
+    auctionSellUndercutPercentMax =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellUndercutPercentMax", 15);
+    if (auctionSellUndercutPercentMax < auctionSellUndercutPercentMin)
+        auctionSellUndercutPercentMax = auctionSellUndercutPercentMin;
+
+    auctionSellDurationMinutes =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellDurationMinutes", 720);
+    if (auctionSellDurationMinutes != 720 && auctionSellDurationMinutes != 1440 &&
+        auctionSellDurationMinutes != 2880)
+    {
+        LOG_ERROR("playerbots",
+                  "Playerbots.Auction.SellDurationMinutes must be 720, 1440, or 2880. Falling back to 720.");
+        auctionSellDurationMinutes = 720;
+    }
+
+    auctionMinSellValueCopper =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MinSellValueCopper", 100);
+    auctionMinSellQuality = sConfigMgr->GetOption<uint32>("Playerbots.Auction.MinSellQuality", 2);
+    if (auctionMinSellQuality > 6)
+        auctionMinSellQuality = 6;
+    auctionKeepHealthPotions =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.KeepHealthPotions", 20);
+    auctionKeepManaPotions =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.KeepManaPotions", 20);
+    auctionKeepHealthPotionsLargeBags =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.KeepHealthPotionsLargeBags", 40);
+    auctionKeepManaPotionsLargeBags =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.KeepManaPotionsLargeBags", 40);
+    auctionLargeBagThreshold =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.LargeBagThreshold", 16);
+    auctionProtectClassReagents =
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.ProtectClassReagents", true);
+    auctionProtectQuestItems =
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.ProtectQuestItems", true);
+    auctionProtectBoundItems =
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.ProtectBoundItems", true);
+
+    auctionEnableBuying = sConfigMgr->GetOption<bool>("Playerbots.Auction.EnableBuying", true);
+    auctionMaxSpendPercentPerVisit =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxSpendPercentPerVisit", 25);
+    if (auctionMaxSpendPercentPerVisit > 100)
+        auctionMaxSpendPercentPerVisit = 100;
+    auctionBuyGearUpgrades = sConfigMgr->GetOption<bool>("Playerbots.Auction.BuyGearUpgrades", true);
+    auctionBuyBiggerBags = sConfigMgr->GetOption<bool>("Playerbots.Auction.BuyBiggerBags", true);
+    auctionBuyConsumables = sConfigMgr->GetOption<bool>("Playerbots.Auction.BuyConsumables", true);
+    auctionBuyProfessionMaterials =
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.BuyProfessionMaterials", true);
+    auctionBuyQuestItems = sConfigMgr->GetOption<bool>("Playerbots.Auction.BuyQuestItems", true);
+
+    auctionStartingBidPercent =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.StartingBidPercent", 10);
+    if (auctionStartingBidPercent > 100)
+        auctionStartingBidPercent = 100;
+    auctionBidIncrementPercent =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BidIncrementPercent", 10);
+    if (auctionBidIncrementPercent > 100)
+        auctionBidIncrementPercent = 100;
+    auctionAllowBuyout = sConfigMgr->GetOption<bool>("Playerbots.Auction.AllowBuyout", true);
     fleeingEnabled = sConfigMgr->GetOption<bool>("Playerbots.FleeingEnabled", true);
     SummonAtInnkeepersEnabled = sConfigMgr->GetOption<bool>("Playerbots.SummonAtInnkeepersEnabled", true);
     RandomBotMinLevel = sConfigMgr->GetOption<int32>("Playerbots.RandomBotMinLevel", 1);

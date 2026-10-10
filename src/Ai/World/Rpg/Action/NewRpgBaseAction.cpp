@@ -1079,6 +1079,9 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
     if (!bot)
         return false;
 
+    if (!sPlayerbotAIConfig.auctionEnabled)
+        return false;
+
     if (bot->GetLevel() < (uint32)sPlayerbotAIConfig.auctionVisitMinLevel)
         return false;
 
