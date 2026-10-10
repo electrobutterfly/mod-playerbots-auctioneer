@@ -231,3 +231,30 @@ AiPlayerbot.Auction.RelistUndercutPercentMax = 20
 # Default: 0 (disabled)
 AiPlayerbot.Auction.RunAnalysis = 0
 
+# Exclude items that any NPC vendor stocks from the auction house sell path.
+# Blacksmith Hammer, Mining Pick, Skinning Knife, Arclight Spanner, and every
+# other supplier-stocked tool are the target: nobody buys these on the AH when
+# they are sold for a few copper by every supplier in the game.
+# Trade goods, recipes, and consumables are exempt — those sometimes have a
+# BuyPrice on a limited-supply vendor while still being legitimate AH items.
+# Requires a server restart to reload the vendor list.
+# Default: 1 (enabled)
+AiPlayerbot.Auction.ExcludeVendorSoldItems = 1
+
+# Cap on how many live auctions a single bot may have at once. When a bot
+# reaches this many live listings it stops queueing new sell candidates
+# until some expire or sell. It can still visit the AH to buy.
+# 0 disables selling entirely (bots may only buy). Useful when the AH is
+# populated by a dedicated AH bot and you want playerbots to be pure buyers.
+# Default: 100 (with 1000 bots = up to 100000 live listings)
+AiPlayerbot.Auction.MaxActiveListingsPerBot = 100
+
+# How many times an item may come back from an expired auction before the
+# bot stops relisting it. When the counter hits this value, the next
+# returned mail for that entry is collected but not relisted, so the item
+# stays in bags and follows the normal vendor/destroy path.
+# 0 disables relisting entirely.
+# Counters reset to 0 when the item is re-listed from bags (fresh listing),
+# and persist across logins via the playerbots database.
+# Default: 3
+AiPlayerbot.Auction.MaxRelistRetries = 3

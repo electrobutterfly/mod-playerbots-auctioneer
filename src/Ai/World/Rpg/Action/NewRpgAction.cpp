@@ -647,8 +647,39 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                                       bot->GetName(), collected.size());
                         }
 
-                        // Record returned entries for relist pricing.
+                                                // Per-bot retry budget. Every entry has a persistent
+                        // counter; when it reaches the configured cap, the
+                        // returned item is collected but not relisted, so it
+                        // falls through to the normal vendor/destroy path.
+                        uint32 const maxRetries = sPlayerbotAIConfig.auctionMaxRelistRetries;
+                        bool const isRandomBot = sRandomPlayerbotMgr.IsRandomBot(bot);
+                        uint32 const botLow = bot->GetGUID().GetCounter();
+
+                        std::vector<uint32> relistable;
                         for (uint32 entry : collected)
+                        {
+                            if (isRandomBot && maxRetries > 0)
+                            {
+                                std::string const key =
+                                    "auction.relist." + std::to_string(entry);
+                                uint32 const retries = sRandomPlayerbotMgr.GetValue(botLow, key);
+                                if (retries >= maxRetries)
+                                {
+                                    if (debugAuction)
+                                    {
+                                        LOG_ERROR("playerbots",
+                                                  "[AH-TRACE] {} relist: entry {} hit max retries ({}/{}), not relisting",
+                                                  bot->GetName(), entry, retries, maxRetries);
+                                    }
+                                    continue;
+                                }
+                                sRandomPlayerbotMgr.SetValue(botLow, key, retries + 1);
+                            }
+                            relistable.push_back(entry);
+                        }
+
+                        // Record returned entries for relist pricing.
+                        for (uint32 entry : relistable)
                         {
                             if (std::find(data->returnedEntries.begin(),
                                           data->returnedEntries.end(),
@@ -667,7 +698,7 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                                 break;
                             if (!it || !it->CanBeTraded())
                                 continue;
-                            if (std::find(collected.begin(), collected.end(), it->GetEntry()) == collected.end())
+                            if (std::find(relistable.begin(), relistable.end(), it->GetEntry()) == relistable.end())
                                 continue;
                             relistSells.push_back(it->GetGUID());
                         }

@@ -142,7 +142,7 @@ ItemUsage ItemUsageValue::Calculate()
     if (botNeedsItemForQuest)
         return ITEM_USAGE_QUEST;
 
-        if (proto->Class == ITEM_CLASS_PROJECTILE && bot->CanUseItem(proto) == EQUIP_ERR_OK)
+    if (proto->Class == ITEM_CLASS_PROJECTILE && bot->CanUseItem(proto) == EQUIP_ERR_OK)
     {
         ItemUsage ammoUsage = QueryItemUsageForAmmo(proto);
         if (ammoUsage != ITEM_USAGE_NONE)

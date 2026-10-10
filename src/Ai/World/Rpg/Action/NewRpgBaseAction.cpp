@@ -18,6 +18,7 @@
 #include "AuctionHouseMgr.h"
 #include "AuctionSellAdvisor.h"
 #include "AuctionBuyAdvisor.h"
+#include "AuctionHelpers.h"
 #include "Object.h"
 #include "ObjectAccessor.h"
 #include "ObjectDefines.h"
@@ -1232,10 +1233,26 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                                   auctioneer.loc.GetPositionY(),
                                   auctioneer.loc.GetPositionZ());
 
-                // Sell candidate — cheap, run always when selling is enabled.
+                // Sell candidate. Gated on the per-bot live auction cap:
+                // 0 disables selling entirely, otherwise the bot must be
+                // under its configured cap. Bots at cap can still buy.
                 PlayerbotAuction::SellCandidate sellCand;
-                if (sPlayerbotAIConfig.auctionEnableSelling)
+                if (sPlayerbotAIConfig.auctionEnableSelling &&
+                    PlayerbotAuction::CountActiveListings(bot) <
+                        sPlayerbotAIConfig.auctionMaxActiveListingsPerBot)
+                {
                     sellCand = PlayerbotAuction::FindItemToSell(botAI);
+
+                    // A fresh listing drawn from bags means the bot is not
+                    // churning the same expired item. Reset the relist retry
+                    // counter for this entry so it starts a new cycle.
+                    if (sellCand.item && sRandomPlayerbotMgr.IsRandomBot(bot))
+                    {
+                        std::string const key =
+                            "auction.relist." + std::to_string(sellCand.item->GetEntry());
+                        sRandomPlayerbotMgr.SetValue(bot->GetGUID().GetCounter(), key, 0);
+                    }
+                }
 
                 // Buy candidate — expensive (scans all AH listings). Gate behind
                 // a probability so we don't hammer the manager every tick.

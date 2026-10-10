@@ -15,6 +15,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 enum class BotCheatMask : uint32
@@ -324,6 +325,25 @@ public:
     uint32 auctionMaxTrackedBids;
     bool auctionProtectUsefulItems;
     bool auctionSellFullStacksOnly;
+
+    // Cap on how many live auctions a single bot may have at once.
+    // 0 disables selling entirely for bots (they may still buy from the AH).
+    // Default: 100
+
+
+    // Items that any NPC vendor sells, loaded once from npc_vendor at startup.
+    // These are the "vendor junk" the AH should never carry: buying them on the
+    // AH makes no sense when a supplier sells them for a few copper. Skips
+    // Blacksmith Hammer, Mining Pick, Skinning Knife, Arclight Spanner, etc.
+    bool auctionExcludeVendorSoldItems;
+    std::unordered_set<uint32> auctionVendorSoldItems;
+    bool IsVendorSoldItem(uint32 itemId) const
+    {
+        return auctionVendorSoldItems.find(itemId) != auctionVendorSoldItems.end();
+    }
+
+    uint32 auctionMaxActiveListingsPerBot;
+    uint32 auctionMaxRelistRetries;
     uint32 auctionMaxSellsPerVisit;
     uint32 auctionRelistUndercutPercentMin;
     uint32 auctionRelistUndercutPercentMax;

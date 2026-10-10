@@ -27,6 +27,18 @@ namespace PlayerbotAuction
     // Returns true if the packet was sent. Verifies the item is in the bot's bags.
     bool SendSellItem(Player* bot, Creature* auctioneer, Item* item,
                       uint32 bidCopper, uint32 buyoutCopper, uint32 durationMinutes);
+
+    // Number of live auctions in the AH currently owned by this bot.
+    uint32 CountActiveListings(Player* bot);
+
+    // Cancel and delete every live auction owned by `bot`, refunding any
+    // bidder through the core's normal cancel mail. Returns count removed.
+    uint32 RemoveAllBotAuctions(Player* bot);
+
+    // Delete every mail row for this bot, both in-memory and in the DB.
+    // Used by the full-randomize reset path so a wiped bot does not carry
+    // stale expired-auction mail into its new life.
+    uint32 CleanupBotMail(Player* bot);
 }
 
 #endif

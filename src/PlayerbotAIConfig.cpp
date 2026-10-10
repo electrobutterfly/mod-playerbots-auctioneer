@@ -525,10 +525,10 @@ bool PlayerbotAIConfig::Initialize()
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ProtectUsefulItems", true);
     auctionSellFullStacksOnly =
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.SellFullStacksOnly", false);
-
+    auctionMaxActiveListingsPerBot =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
     auctionMaxSellsPerVisit =
         sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxSellsPerVisit", 3);
-
     auctionRelistUndercutPercentMin =
         sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.RelistUndercutPercentMin", 10);
     auctionRelistUndercutPercentMax =
@@ -540,6 +540,50 @@ bool PlayerbotAIConfig::Initialize()
 
     auctionRunAnalysis =
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.RunAnalysis", false);
+
+    auctionMaxActiveListingsPerBot =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
+        auctionMaxRelistRetries =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxRelistRetries", 3);
+
+    // Load the set of items stocked by any NPC vendor. Used by FindItemToSell
+    // to skip vendor junk. Trade goods, recipes, and consumables are exempt
+    // because they can have a BuyPrice on a limited-supply vendor while still
+    // being legitimate AH items.
+    auctionExcludeVendorSoldItems =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ExcludeVendorSoldItems", true);
+    auctionVendorSoldItems.clear();
+    if (auctionExcludeVendorSoldItems)
+    {
+        if (QueryResult result = WorldDatabase.Query("SELECT DISTINCT item FROM npc_vendor WHERE item > 0"))
+        {
+            do
+            {
+                auctionVendorSoldItems.insert(result->Fetch()[0].Get<uint32>());
+            } while (result->NextRow());
+        }
+        LOG_INFO("server.loading",
+                 ">> Loaded {} vendor-sold items for AH sell filter", auctionVendorSoldItems.size());
+    }
+
+    // Add Auctioneer
+    // Load the set of vendor-sold items once. Skipped when the feature is off
+    // so servers that do not want the filter do not pay for the query.
+    auctionExcludeVendorSoldItems =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ExcludeVendorSoldItems", true);
+    auctionVendorSoldItems.clear();
+    if (auctionExcludeVendorSoldItems)
+    {
+        if (QueryResult result = WorldDatabase.Query("SELECT DISTINCT item FROM npc_vendor WHERE item > 0"))
+        {
+            do
+            {
+                auctionVendorSoldItems.insert(result->Fetch()[0].Get<uint32>());
+            } while (result->NextRow());
+        }
+        LOG_INFO("server.loading",
+                 ">> Loaded {} vendor-sold items for AH sell filter", auctionVendorSoldItems.size());
+    }
 
     // Seller preference
     auctionSellerPreferenceAggression =
