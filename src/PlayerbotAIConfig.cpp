@@ -566,24 +566,17 @@ bool PlayerbotAIConfig::Initialize()
                  ">> Loaded {} vendor-sold items for AH sell filter", auctionVendorSoldItems.size());
     }
 
-    // Add Auctioneer
-    // Load the set of vendor-sold items once. Skipped when the feature is off
-    // so servers that do not want the filter do not pay for the query.
-    auctionExcludeVendorSoldItems =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ExcludeVendorSoldItems", true);
-    auctionVendorSoldItems.clear();
-    if (auctionExcludeVendorSoldItems)
-    {
-        if (QueryResult result = WorldDatabase.Query("SELECT DISTINCT item FROM npc_vendor WHERE item > 0"))
-        {
-            do
-            {
-                auctionVendorSoldItems.insert(result->Fetch()[0].Get<uint32>());
-            } while (result->NextRow());
-        }
-        LOG_INFO("server.loading",
-                 ">> Loaded {} vendor-sold items for AH sell filter", auctionVendorSoldItems.size());
-    }
+    // Config-driven exclusion list. Server owners can add item IDs here to keep
+    // them off the AH entirely. The defaults are the tool items playerbots
+    // hands out freely to bots of the matching profession; no player would buy
+    // them from the AH because a vendor stocks them.
+    auctionExcludedItemIds.clear();
+    LoadSet<std::set<uint32>>(
+        sConfigMgr->GetOption<std::string>("AiPlayerbot.Auction.ExcludedItemIds",
+                                           "2901,5956,6219,16207,7005"),
+        auctionExcludedItemIds);
+    LOG_INFO("server.loading",
+             ">> Loaded {} excluded AH item ids", auctionExcludedItemIds.size());
 
     // Seller preference
     auctionSellerPreferenceAggression =

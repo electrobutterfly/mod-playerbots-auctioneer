@@ -342,6 +342,12 @@ public:
         return auctionVendorSoldItems.find(itemId) != auctionVendorSoldItems.end();
     }
 
+    std::set<uint32> auctionExcludedItemIds;
+    bool IsAuctionExcludedItem(uint32 itemId) const
+    {
+        return auctionExcludedItemIds.find(itemId) != auctionExcludedItemIds.end();
+    }
+
     uint32 auctionMaxActiveListingsPerBot;
     uint32 auctionMaxRelistRetries;
     uint32 auctionMaxSellsPerVisit;

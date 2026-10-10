@@ -258,3 +258,15 @@ AiPlayerbot.Auction.MaxActiveListingsPerBot = 100
 # and persist across logins via the playerbots database.
 # Default: 3
 AiPlayerbot.Auction.MaxRelistRetries = 3
+
+# Comma-separated list of item IDs the AH sell path will never list. Applies
+# to both fresh listings and relisted items returned from an expired auction.
+# Defaults cover the tool items playerbots hands out to every bot with the
+# matching profession, which no player would buy from the AH because a vendor
+# stocks them:
+#   2901  Mining Pick
+#   5956  Blacksmith Hammer
+#   6219  Arclight Spanner
+#   16207 Runed Arcanite Rod
+#   7005  Skinning Knife
+AiPlayerbot.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005"

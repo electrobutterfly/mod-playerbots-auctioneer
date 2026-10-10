@@ -232,7 +232,7 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         sPlayerbotAIConfig.debugAuction && sPlayerbotAIConfig.auctionRunAnalysis;
     uint32 scanned = 0, rejTrade = 0, rejQuality = 0, rejEquipped = 0, rejValue = 0;
     uint32 rejQuest = 0, rejBound = 0, rejFullStack = 0, rejClassReagent = 0;
-    uint32 rejUseful = 0, rejPotion = 0, rejVendorSold = 0;
+    uint32 rejUseful = 0, rejPotion = 0, rejVendorSold = 0, rejExcluded = 0;
 
     for (Item* it : botAI->GetInventoryItems())
     {
@@ -249,16 +249,32 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         if (it->IsEquipped()) { if (runAnalysis) ++rejEquipped; continue; }
         if (p->SellPrice < minValue) { if (runAnalysis) ++rejValue; continue; }
 
-        // Vendor junk filter: never list an item that any NPC vendor stocks,
-        // unless it is a trade good, recipe, or consumable. Those three classes
-        // sometimes have a BuyPrice on a limited-supply vendor while still being
-        // legitimate AH items (e.g. rare recipes from a quest vendor). Weapons,
-        // armor, and misc tools with a vendor stock are the ones we want gone.
+        // Config-driven exclusion list. Server owners can list specific item
+        // IDs to keep off the AH entirely; defaults are the tool items that
+        // playerbots hands out freely and that a vendor stocks, which no
+        // player would ever buy from the AH.
+        if (sPlayerbotAIConfig.IsAuctionExcludedItem(p->ItemId))
+        {
+            if (runAnalysis) ++rejExcluded;
+            continue;
+        }
+
+        // Vendor junk filter: skip items that an NPC vendor actually stocks,
+        // unless it is a trade good, recipe, or consumable. Those three
+        // classes sometimes have a BuyPrice on a limited-supply vendor while
+        // still being legitimate AH items (e.g. rare recipes from a quest
+        // vendor).
+        //
+        // Only npc_vendor is consulted here. item_template.BuyPrice is set on
+        // almost every item in the game, so it cannot distinguish vendor-stock
+        // items from ordinary loot. Specific tool items that a bot hands
+        // itself but a vendor also stocks (Arclight Spanner, Mining Pick, etc)
+        // are covered by AiPlayerbot.Auction.ExcludedItemIds instead.
         if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
-            sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId) &&
             p->Class != ITEM_CLASS_TRADE_GOODS &&
             p->Class != ITEM_CLASS_RECIPE &&
-            p->Class != ITEM_CLASS_CONSUMABLE)
+            p->Class != ITEM_CLASS_CONSUMABLE &&
+            sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId))
         {
             if (runAnalysis) ++rejVendorSold;
             continue;
@@ -356,11 +372,11 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
                   "[AH-TRACE] {} sellpick: scanned={} candidates={} "
                   "rejTrade={} rejQuality={} rejEquipped={} rejValue={} "
                   "rejQuest={} rejBound={} rejFullStack={} rejClassReagent={} "
-                  "rejUseful={} rejPotion={} rejVendorSold={} bags=[{}]",
+                  "rejUseful={} rejPotion={} rejVendorSold={} rejExcluded={} bags=[{}]",
                   bot->GetName(), scanned, candidates.size(),
                   rejTrade, rejQuality, rejEquipped, rejValue,
                   rejQuest, rejBound, rejFullStack, rejClassReagent,
-                  rejUseful, rejPotion, rejVendorSold, bagSizes);
+                  rejUseful, rejPotion, rejVendorSold, rejExcluded, bagSizes);
     }
 
     if (candidates.empty())
@@ -375,6 +391,19 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
 
     constexpr size_t kTopN = 5;
     size_t const poolSize = std::min(candidates.size(), kTopN);
+
+    if (runAnalysis && poolSize > 0)
+    {
+        std::ostringstream pool;
+        for (size_t i = 0; i < poolSize; ++i)
+        {
+            ItemTemplate const* tp = candidates[i].item->GetTemplate();
+            pool << "[" << tp->ItemId << " q" << uint32(tp->Quality)
+                 << " c" << uint32(tp->Class) << "] ";
+        }
+        LOG_ERROR("playerbots", "[AH-TRACE] {} candidate pool: {}", bot->GetName(), pool.str());
+    }
+
     size_t const pick = urand(0, poolSize - 1);
     Item* best = candidates[pick].item;
 

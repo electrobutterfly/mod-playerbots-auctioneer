@@ -691,6 +691,10 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
                         // Queue up to MaxSellsPerVisit returned items. These
                         // go to the front of pendingSells so they list first.
+                        // Apply the same vendor-junk filter the fresh-listing
+                        // path uses. Without it, a bot that listed a tool
+                        // before this filter existed would relist it forever
+                        // through the mail return loop.
                         std::vector<ObjectGuid> relistSells;
                         for (Item* it : botAI->GetInventoryItems())
                         {
@@ -700,6 +704,37 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                                 continue;
                             if (std::find(relistable.begin(), relistable.end(), it->GetEntry()) == relistable.end())
                                 continue;
+
+                            ItemTemplate const* p = it->GetTemplate();
+                            if (!p)
+                                continue;
+
+                            if (sPlayerbotAIConfig.IsAuctionExcludedItem(p->ItemId))
+                            {
+                                if (debugAuction)
+                                {
+                                    LOG_ERROR("playerbots",
+                                              "[AH-TRACE] {} relist: skipping excluded [{}] {}",
+                                              bot->GetName(), p->ItemId, p->Name1);
+                                }
+                                continue;
+                            }
+
+                            if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
+                                p->Class != ITEM_CLASS_TRADE_GOODS &&
+                                p->Class != ITEM_CLASS_RECIPE &&
+                                p->Class != ITEM_CLASS_CONSUMABLE &&
+                                sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId))
+                            {
+                                if (debugAuction)
+                                {
+                                    LOG_ERROR("playerbots",
+                                              "[AH-TRACE] {} relist: skipping vendor-sold [{}] {}",
+                                              bot->GetName(), p->ItemId, p->Name1);
+                                }
+                                continue;
+                            }
+
                             relistSells.push_back(it->GetGUID());
                         }
 
