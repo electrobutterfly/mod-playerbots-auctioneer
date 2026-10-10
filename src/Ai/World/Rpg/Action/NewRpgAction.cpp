@@ -141,6 +141,24 @@ bool TellRpgStatusAction::Execute(Event event)
         info.ChangeToGoCamp(pos);
         WhisperStatusChange(owner, "GO_CAMP");
         return true;
+        }
+    else if (status == RPG_GO_AUCTIONEER)
+    {
+        TravelMgr::NpcLocation auctioneer;
+        if (!sTravelMgr.SelectAuctioneerByMap(bot, auctioneer))
+        {
+            std::string msg = PlayerbotTextMgr::instance().GetBotTextOrDefault(
+                "rpg_no_auctioneer_error", "No auctioneer available on this map.", {});
+            bot->Whisper(msg, LANG_UNIVERSAL, owner);
+            return false;
+        }
+        WorldPosition pos(auctioneer.loc.GetMapId(),
+                          auctioneer.loc.GetPositionX(),
+                          auctioneer.loc.GetPositionY(),
+                          auctioneer.loc.GetPositionZ());
+        info.ChangeToGoAuctioneer(pos, auctioneer.entry);
+        WhisperStatusChange(owner, "GO_AUCTIONEER");
+        return true;
     }
     else if (status == RPG_TRAVEL_FLIGHT)
     {
@@ -216,10 +234,10 @@ bool TellRpgStatusAction::Execute(Event event)
         return true;
     }
 
-    std::string msg = PlayerbotTextMgr::instance().GetBotTextOrDefault(
+std::string msg = PlayerbotTextMgr::instance().GetBotTextOrDefault(
         "rpg_unknown_status_error",
         "Unknown rpg status. Options: idle, rest, wander random, wander npc, "
-        "go grind, go camp, do quest [<id>], travel flight, outdoor pvp, do gather.", {});
+        "go grind, go camp, go auctioneer, do quest [<id>], travel flight, outdoor pvp, do gather.", {});
     bot->Whisper(msg, LANG_UNIVERSAL, owner);
     return false;
 }
@@ -251,8 +269,8 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
     switch (status)
     {
         case RPG_IDLE:
-            return RandomChangeStatus({RPG_GO_CAMP, RPG_GO_GRIND, RPG_WANDER_RANDOM, RPG_WANDER_NPC, RPG_DO_QUEST,
-                                       RPG_TRAVEL_FLIGHT, RPG_REST, RPG_OUTDOOR_PVP, RPG_DO_GATHER});
+            return RandomChangeStatus({RPG_GO_CAMP, RPG_GO_GRIND, RPG_GO_AUCTIONEER, RPG_WANDER_RANDOM, RPG_WANDER_NPC,
+                                       RPG_DO_QUEST, RPG_TRAVEL_FLIGHT, RPG_REST, RPG_OUTDOOR_PVP, RPG_DO_GATHER});
 
         case RPG_GO_GRIND:
         {
@@ -276,6 +294,26 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             if (bot->GetExactDist(originalPos) < 10.0f)
             {
                 info.ChangeToWanderNpc();
+                return true;
+            }
+            break;
+        }
+        // Add Auctioneer
+        case RPG_GO_AUCTIONEER:
+        {
+            auto& data = std::get<NewRpgInfo::GoAuctioneer>(info.data);
+            WorldPosition& originalPos = data.pos;
+            assert(data.pos != WorldPosition());
+            // GO_AUCTIONEER -> WANDER_NPC (bot has arrived)
+            if (bot->GetExactDist(originalPos) < 10.0f)
+            {
+                info.ChangeToWanderNpc();
+                return true;
+            }
+            // Give up if the walk takes too long (unreachable destination).
+            if (info.HasStatusPersisted(statusGoAuctioneerDuration))
+            {
+                info.ChangeToIdle();
                 return true;
             }
             break;
@@ -387,6 +425,29 @@ bool NewRpgGoCampAction::Execute(Event /*event*/)
     return false;
 }
 
+// Modify for Auctioneer
+bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
+{
+    if (SearchQuestGiverAndAcceptOrReward())
+        return true;
+
+    if (auto* data = std::get_if<NewRpgInfo::GoAuctioneer>(&botAI->rpgInfo.data))
+    {
+        if (bot->GetDistance(data->pos) > INTERACTION_DISTANCE)
+        {
+            if (MoveFarTo(data->pos))
+                return true;
+            return MoveRandomNear(10.0f);
+        }
+
+        if (!data->lastReach)
+            data->lastReach = getMSTime();
+
+        return false;
+    }
+
+    return false;
+}
 bool NewRpgWanderRandomAction::Execute(Event /*event*/)
 {
     if (SearchQuestGiverAndAcceptOrReward())

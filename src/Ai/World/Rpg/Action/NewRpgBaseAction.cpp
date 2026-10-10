@@ -1073,6 +1073,37 @@ WorldPosition NewRpgBaseAction::SelectRandomCampPos(Player* bot)
     return dest;
 }
 
+// Add Auctioneer
+bool NewRpgBaseAction::ShouldVisitAuctioneer()
+{
+    if (!bot)
+        return false;
+
+    if (bot->GetLevel() < (uint32)sPlayerbotAIConfig.auctionVisitMinLevel)
+        return false;
+
+    // Must have a reachable auctioneer on this map.
+    TravelMgr::NpcLocation auctioneer;
+    if (!sTravelMgr.SelectAuctioneerByMap(bot, auctioneer))
+        return false;
+
+    // Bag pressure. "bag space" is a fullness percentage (0..100):
+    // SmartDestroyItemAction treats >= 90 as "dangerously full".
+    if (sPlayerbotAIConfig.auctionVisitMinBagFillPercent > 0)
+    {
+        uint8 bagFill = AI_VALUE(uint8, "bag space");
+        if (bagFill >= sPlayerbotAIConfig.auctionVisitMinBagFillPercent)
+            return true;
+    }
+
+    // Gold pressure.
+    if (sPlayerbotAIConfig.auctionVisitMinGoldCopper > 0 &&
+        bot->GetMoney() >= (uint32)sPlayerbotAIConfig.auctionVisitMinGoldCopper)
+        return true;
+
+    return false;
+}
+
 bool NewRpgBaseAction::SelectRandomFlightTaxiNode(uint32& flightMasterEntry, WorldPosition& flightMasterPos, std::vector<uint32>& path)
 {
     TravelMgr::FlightMasterInfo const* info = sTravelMgr.GetNearestFlightMasterInfo(bot);
@@ -1154,6 +1185,21 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
             if (pos != WorldPosition())
             {
                 botAI->rpgInfo.ChangeToGoCamp(pos);
+                return true;
+            }
+            return false;
+        }
+// Add Auctioneer
+        case RPG_GO_AUCTIONEER:
+        {
+            TravelMgr::NpcLocation auctioneer;
+            if (sTravelMgr.SelectAuctioneerByMap(bot, auctioneer))
+            {
+                WorldPosition pos(auctioneer.loc.GetMapId(),
+                                  auctioneer.loc.GetPositionX(),
+                                  auctioneer.loc.GetPositionY(),
+                                  auctioneer.loc.GetPositionZ());
+                botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry);
                 return true;
             }
             return false;
@@ -1249,6 +1295,11 @@ bool NewRpgBaseAction::CheckRpgStatusAvailable(NewRpgStatus status)
         {
             WorldPosition pos = SelectRandomCampPos(bot);
             return pos != WorldPosition();
+        }
+        // Add Auctioneer
+        case RPG_GO_AUCTIONEER:
+        {
+            return ShouldVisitAuctioneer();
         }
         case RPG_WANDER_NPC:
         {

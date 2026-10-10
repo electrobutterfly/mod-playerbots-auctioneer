@@ -34,6 +34,13 @@ struct NewRpgInfo
     {
         WorldPosition pos{};
     };
+    // RPG_GO_AUCTIONEER
+    struct GoAuctioneer
+    {
+        WorldPosition pos{};
+        uint32 auctioneerEntry{0};
+        uint32 lastReach{0};
+    };
     // RPG_WANDER_NPC
     struct WanderNpc
     {
@@ -99,6 +106,8 @@ struct NewRpgInfo
         Idle,
         GoGrind,
         GoCamp,
+        //Add Auctioneer
+        GoAuctioneer,
         WanderNpc,
         WanderRandom,
         DoQuest,
@@ -114,6 +123,8 @@ struct NewRpgInfo
     bool HasStatusPersisted(uint32 maxDuration) { return GetMSTimeDiffToNow(startT) > maxDuration; }
     void ChangeToGoGrind(WorldPosition pos);
     void ChangeToGoCamp(WorldPosition pos);
+    // Add Auctioneer
+    void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry);
     void ChangeToWanderNpc();
     void ChangeToWanderRandom();
     void ChangeToDoQuest(uint32 questId, Quest const* quest);
