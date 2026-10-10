@@ -21,13 +21,22 @@ void NewRpgInfo::ChangeToGoCamp(WorldPosition pos)
 }
 
 // Add Auctioneer
-void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry)
+void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
+                                      ObjectGuid sellItemGuid,
+                                      uint32 sellBid,
+                                      uint32 sellBuyout,
+                                      uint32 sellDuration)
 {
     startT = getMSTime();
     GoAuctioneer data_go;
     data_go.pos = pos;
     data_go.auctioneerEntry = auctioneerEntry;
     data_go.lastReach = 0;
+    data_go.sellItemGuid = sellItemGuid;
+    data_go.sellBid = sellBid;
+    data_go.sellBuyout = sellBuyout;
+    data_go.sellDuration = sellDuration;
+    data_go.sellDone = false;
     data = data_go;
 }
 

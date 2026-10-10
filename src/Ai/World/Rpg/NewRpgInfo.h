@@ -40,6 +40,12 @@ struct NewRpgInfo
         WorldPosition pos{};
         uint32 auctioneerEntry{0};
         uint32 lastReach{0};
+        // Optional sell task. If sellItemGuid is empty, no sell was queued.
+        ObjectGuid sellItemGuid{};
+        uint32 sellBid{0};
+        uint32 sellBuyout{0};
+        uint32 sellDuration{0};
+        bool sellDone{false};
     };
     // RPG_WANDER_NPC
     struct WanderNpc
@@ -124,7 +130,11 @@ struct NewRpgInfo
     void ChangeToGoGrind(WorldPosition pos);
     void ChangeToGoCamp(WorldPosition pos);
     // Add Auctioneer
-    void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry);
+    void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
+                              ObjectGuid sellItemGuid = ObjectGuid::Empty,
+                              uint32 sellBid = 0,
+                              uint32 sellBuyout = 0,
+                              uint32 sellDuration = 0);
     void ChangeToWanderNpc();
     void ChangeToWanderRandom();
     void ChangeToDoQuest(uint32 questId, Quest const* quest);
