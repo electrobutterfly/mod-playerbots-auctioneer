@@ -8,6 +8,7 @@
 #include "AreaDefines.h"
 #include "AuctionHouseMgr.h"
 #include "AuctionHelpers.h"
+#include "AuctionSellAdvisor.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -1046,6 +1047,25 @@ bool AhAction::Execute(Event event)
                       auctioneer->GetName(), auctioneer->GetEntry());
         }
 
+        return true;
+    }
+
+        if (subcommand == "sellpick")
+    {
+        auto candidate = PlayerbotAuction::FindItemToSell(botAI);
+        if (!candidate.item)
+        {
+            reply("No item worth selling.");
+            return false;
+        }
+        std::ostringstream out;
+        out << "Would sell: [" << candidate.item->GetEntry() << "] "
+            << candidate.item->GetTemplate()->Name1
+            << " x" << candidate.item->GetCount()
+            << " for bid=" << candidate.suggestedBid
+            << " buyout=" << candidate.suggestedBuyout
+            << " copper";
+        reply(out.str());
         return true;
     }
 
