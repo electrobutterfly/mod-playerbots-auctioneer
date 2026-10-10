@@ -20,7 +20,9 @@ CMakeLists.txt.user
 *.BACKUP.*
 *.BASE.*
 *.LOCAL.*
+/auctioneer_baseline/auctioneer.conf
 /auctioneer_baseline/scans*
+/auctioneer_baseline/__pycache__*
 
 #
 # IDE & other softwares
