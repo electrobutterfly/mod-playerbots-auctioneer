@@ -6,12 +6,15 @@
 
 #include "AuctionSellAdvisor.h"
 #include "AuctionHouseMgr.h"
+#include "ItemUsageValue.h"
 #include "Bag.h"
 #include "Item.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
+#include <algorithm>
+#include <vector>
 #include <unordered_map>
 
 namespace PlayerbotAuction
@@ -32,6 +35,30 @@ bool BotHasLargeBags(Player* bot)
         }
     }
     return largest >= sPlayerbotAIConfig.auctionLargeBagThreshold;
+}
+
+namespace
+{
+    // Usage values that mean "the bot wants this for a purpose". Anything in
+    // this set should not be listed on the AH.
+    bool IsUsageProtected(ItemUsage usage)
+    {
+        switch (usage)
+        {
+            case ITEM_USAGE_EQUIP:
+            case ITEM_USAGE_REPLACE:
+            case ITEM_USAGE_BROKEN_EQUIP:
+            case ITEM_USAGE_QUEST:
+            case ITEM_USAGE_SKILL:
+            case ITEM_USAGE_USE:
+            case ITEM_USAGE_AMMO:
+            case ITEM_USAGE_KEEP:
+            case ITEM_USAGE_GUILD_TASK:
+                return true;
+            default:
+                return false;
+        }
+    }
 }
 
 bool IsProtectedClassReagent(Player* bot, Item* item)
@@ -174,8 +201,12 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
 
     std::unordered_map<uint32, uint32> potionAlreadyPicked;
 
-    Item* best = nullptr;
-    uint32 bestValue = 0;
+        struct Candidate
+    {
+        Item* item;
+        uint32 value;
+    };
+    std::vector<Candidate> candidates;
 
     for (Item* it : botAI->GetInventoryItems())
     {
@@ -202,6 +233,14 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
 
         if (sPlayerbotAIConfig.auctionProtectClassReagents && IsProtectedClassReagent(bot, it))
             continue;
+
+        if (sPlayerbotAIConfig.auctionProtectUsefulItems)
+        {
+            AiObjectContext* ctx = botAI->GetAiObjectContext();
+            ItemUsage usage = ctx->GetValue<ItemUsage>("item usage", p->ItemId)->Get();
+            if (IsUsageProtected(usage))
+                continue;
+        }
 
         if (p->Class == ITEM_CLASS_CONSUMABLE && p->SubClass == ITEM_SUBCLASS_POTION)
         {
@@ -232,16 +271,24 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
             potionAlreadyPicked[bucket] += it->GetCount();
         }
 
-        uint32 value = p->SellPrice * it->GetCount();
-        if (value > bestValue)
-        {
-            bestValue = value;
-            best = it;
-        }
+                uint32 value = p->SellPrice * it->GetCount();
+        candidates.push_back({it, value});
     }
 
-    if (!best)
+    if (candidates.empty())
         return result;
+
+    // Sort by value descending, take the top N, pick one at random.
+    // This diversifies what bots list so the AH doesn't fill with the
+    // same item from every bot.
+    std::sort(candidates.begin(), candidates.end(),
+              [](Candidate const& a, Candidate const& b)
+              { return a.value > b.value; });
+
+    constexpr size_t kTopN = 5;
+    size_t const poolSize = std::min(candidates.size(), kTopN);
+    size_t const pick = urand(0, poolSize - 1);
+    Item* best = candidates[pick].item;
 
     result.item = best;
     ComputeSellPrice(botAI, best, result.suggestedBid, result.suggestedBuyout);

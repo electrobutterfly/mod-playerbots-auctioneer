@@ -185,3 +185,12 @@ AiPlayerbot.Auction.BuyScanChancePercent = 10
 # keep bidding on when outbid. 0 disables bid tracking entirely.
 # Default: 5
 AiPlayerbot.Auction.MaxTrackedBids = 5
+
+# If 1, the sell advisor will never list an item that the bot itself
+# considers useful (per the game's ItemUsageValue logic — upgrades it
+# could equip, profession reagents it needs, consumables it uses,
+# quest items it's still collecting, ammo matching its ranged weapon).
+# Only items the bot considers junk or vendor/ah-fodder will be listed.
+# Overrides the individual Protect* flags above when set to 1.
+# Default: 1
+AiPlayerbot.Auction.ProtectUsefulItems = 1
