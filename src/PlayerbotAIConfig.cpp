@@ -515,41 +515,42 @@ bool PlayerbotAIConfig::Initialize()
     if (auctionBuyPriceMultiplierMax < auctionBuyPriceMultiplierMin)
         auctionBuyPriceMultiplierMax = auctionBuyPriceMultiplierMin;
         
-    auctionBuyScanChancePercent =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.BuyScanChancePercent", 10);
+        auctionBuyScanChancePercent =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BuyScanChancePercent", 10);
     if (auctionBuyScanChancePercent > 100)
         auctionBuyScanChancePercent = 100;
 
     auctionMaxTrackedBids =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxTrackedBids", 5);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxTrackedBids", 5);
     auctionProtectUsefulItems =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ProtectUsefulItems", true);
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.ProtectUsefulItems", true);
     auctionSellFullStacksOnly =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.SellFullStacksOnly", false);
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.SellFullStacksOnly", false);
     auctionInitSpareInventory =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.InitSpareInventory", false);
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.InitSpareInventory", false);
     auctionMaxActiveListingsPerBot =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxActiveListingsPerBot", 100);
     auctionMaxSellsPerVisit =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxSellsPerVisit", 3);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxSellsPerVisit", 3);
+
     auctionRelistUndercutPercentMin =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.RelistUndercutPercentMin", 10);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.RelistUndercutPercentMin", 10);
     auctionRelistUndercutPercentMax =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.RelistUndercutPercentMax", 20);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.RelistUndercutPercentMax", 20);
     if (auctionRelistUndercutPercentMax < auctionRelistUndercutPercentMin)
         auctionRelistUndercutPercentMax = auctionRelistUndercutPercentMin;
     if (auctionRelistUndercutPercentMax > 100)
         auctionRelistUndercutPercentMax = 100;
 
     auctionRunAnalysis =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.RunAnalysis", false);
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.RunAnalysis", false);
 
     uint32 const rawBaselineMode =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.Baseline.Mode", 1);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.Baseline.Mode", 1);
     if (rawBaselineMode != 1 && rawBaselineMode != 2)
     {
         LOG_ERROR("server.loading",
-                  "AiPlayerbot.Auction.Baseline.Mode must be 1 or 2 (got {}); "
+                  "Playerbots.Auction.Baseline.Mode must be 1 or 2 (got {}); "
                   "falling back to 1.",
                   rawBaselineMode);
         auctionBaselineMode = 1;
@@ -560,31 +561,31 @@ bool PlayerbotAIConfig::Initialize()
     }
 
     auctionCraftArbitrageEnabled =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.Baseline.CraftArbitrageEnabled",
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.Baseline.CraftArbitrageEnabled",
                                     true);
     auctionCraftMarginPercent =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.Baseline.CraftMarginPercent",
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.Baseline.CraftMarginPercent",
                                       10);
     if (auctionCraftMarginPercent > 500)
         auctionCraftMarginPercent = 500;
 
     auctionBaselineReloadCheckMinutes =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.Baseline.ReloadCheckMinutes",
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.Baseline.ReloadCheckMinutes",
                                       5);
     if (auctionBaselineReloadCheckMinutes > 1440)
         auctionBaselineReloadCheckMinutes = 1440;
 
     auctionMaxActiveListingsPerBot =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxActiveListingsPerBot", 100);
         auctionMaxRelistRetries =
-        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxRelistRetries", 3);
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxRelistRetries", 3);
 
     // Load the set of items stocked by any NPC vendor. Used by FindItemToSell
     // to skip vendor junk. Trade goods, recipes, and consumables are exempt
     // because they can have a BuyPrice on a limited-supply vendor while still
     // being legitimate AH items.
     auctionExcludeVendorSoldItems =
-        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ExcludeVendorSoldItems", true);
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.ExcludeVendorSoldItems", true);
     auctionVendorSoldItems.clear();
     if (auctionExcludeVendorSoldItems)
     {
@@ -605,7 +606,7 @@ bool PlayerbotAIConfig::Initialize()
     // them from the AH because a vendor stocks them.
     auctionExcludedItemIds.clear();
     LoadSet<std::set<uint32>>(
-        sConfigMgr->GetOption<std::string>("AiPlayerbot.Auction.ExcludedItemIds",
+        sConfigMgr->GetOption<std::string>("Playerbots.Auction.ExcludedItemIds",
                                            "2901,5956,6219,16207,7005"),
         auctionExcludedItemIds);
     LOG_INFO("server.loading",
