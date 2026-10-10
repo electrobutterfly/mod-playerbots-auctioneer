@@ -1048,7 +1048,8 @@ void PlayerbotFactory::Randomize(bool incremental)
 
     pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "PlayerbotFactory_Inventory");
     LOG_DEBUG("playerbots", "Initializing inventory...");
-    // InitInventory();
+    if (sPlayerbotAIConfig.auctionInitSpareInventory)
+        InitInventory();
     if (pmo)
         pmo->finish();
 

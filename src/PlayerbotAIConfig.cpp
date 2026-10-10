@@ -525,6 +525,8 @@ bool PlayerbotAIConfig::Initialize()
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.ProtectUsefulItems", true);
     auctionSellFullStacksOnly =
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.SellFullStacksOnly", false);
+    auctionInitSpareInventory =
+        sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.InitSpareInventory", false);
     auctionMaxActiveListingsPerBot =
         sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxActiveListingsPerBot", 100);
     auctionMaxSellsPerVisit =

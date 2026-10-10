@@ -270,3 +270,12 @@ AiPlayerbot.Auction.MaxRelistRetries = 3
 #   16207 Runed Arcanite Rod
 #   7005  Skinning Knife
 AiPlayerbot.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005"
+
+# When 1, a fresh bot's randomization seeds a few spare BoE weapons and
+# armor into its bags, which then flow into the auction house. When 0, a
+# bot only has spare gear if it looted it, so a fresh server population
+# will take hours to generate real gear liquidity on the AH.
+# Enabling this slows bot randomization slightly because it scans item
+# templates to pick suitable spares.
+# Default: 0 (disabled)
+AiPlayerbot.Auction.InitSpareInventory = 0
