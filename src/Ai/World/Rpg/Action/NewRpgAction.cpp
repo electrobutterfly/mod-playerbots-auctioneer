@@ -7,6 +7,7 @@
 #include "NewRpgAction.h"
 #include "AreaDefines.h"
 #include "AuctionHouseMgr.h"
+#include "AuctionHelpers.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -959,28 +960,14 @@ bool AhAction::Execute(Event event)
         }
 
         // Find any auctioneer within interaction range.
-        Creature* auctioneer = nullptr;
-        GuidVector const npcs = AI_VALUE(GuidVector, "nearest npcs");
-        for (ObjectGuid const& guid : npcs)
-        {
-            Creature* creature = botAI->GetCreature(guid);
-            if (!creature)
-                continue;
-            if (!creature->HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER))
-                continue;
-            if (bot->GetDistance(creature) > INTERACTION_DISTANCE)
-                continue;
-            auctioneer = creature;
-            break;
-        }
-
+        Creature* auctioneer = PlayerbotAuction::FindAuctioneerInRange(botAI);
         if (!auctioneer)
         {
             reply("No auctioneer within interaction range. Walk to one first.");
             return false;
         }
 
-                // -- diagnostic: check every precondition the handler will check --
+        // -- diagnostic: check every precondition the handler will check --
         Creature* verify = bot->GetNPCIfCanInteractWith(auctioneer->GetGUID(), UNIT_NPC_FLAG_AUCTIONEER);
         LOG_ERROR("playerbots", "[AH-DIAG] GetNPCIfCanInteractWith: {}",
                   verify ? "OK" : "NULL");
@@ -1044,12 +1031,7 @@ bool AhAction::Execute(Event event)
             }
         }
 
-        WorldPacket packet(CMSG_AUCTION_PLACE_BID);
-        packet << auctioneer->GetGUID();
-        packet << uint32(auctionId);
-        packet << uint32(price);
-        packet.rpos(0);
-        bot->GetSession()->HandleAuctionPlaceBid(packet);
+        PlayerbotAuction::SendPlaceBid(bot, auctioneer, auctionId, price);
 
         std::ostringstream out;
         out << "Sent bid: auctionId=" << auctionId
@@ -1094,40 +1076,14 @@ bool AhAction::Execute(Event event)
             return false;
         }
 
-        Creature* auctioneer = nullptr;
-        GuidVector const npcs = AI_VALUE(GuidVector, "nearest npcs");
-        for (ObjectGuid const& guid : npcs)
-        {
-            Creature* creature = botAI->GetCreature(guid);
-            if (!creature)
-                continue;
-            if (!creature->HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER))
-                continue;
-            if (bot->GetDistance(creature) > INTERACTION_DISTANCE)
-                continue;
-            auctioneer = creature;
-            break;
-        }
-
+                Creature* auctioneer = PlayerbotAuction::FindAuctioneerInRange(botAI);
         if (!auctioneer)
         {
             reply("No auctioneer within interaction range. Walk to one first.");
             return false;
         }
 
-        Item* target = nullptr;
-        for (Item* item : botAI->GetInventoryItems())
-        {
-            if (!item)
-                continue;
-            if (item->GetEntry() != itemId)
-                continue;
-            if (!item->CanBeTraded())
-                continue;
-            target = item;
-            break;
-        }
-
+        Item* target = PlayerbotAuction::FindTradeableItemInBags(botAI, itemId);
         if (!target)
         {
             std::ostringstream why;
@@ -1154,16 +1110,7 @@ bool AhAction::Execute(Event event)
                           uint32(ahE->houseId));
         }
 
-        WorldPacket packet(CMSG_AUCTION_SELL_ITEM);
-        packet << auctioneer->GetGUID();
-        packet << uint32(1);
-        packet << target->GetGUID();
-        packet << uint32(target->GetCount());
-        packet << uint32(bid);
-        packet << uint32(buyout);
-        packet << uint32(duration);
-        packet.rpos(0);
-        bot->GetSession()->HandleAuctionSellItem(packet);
+        PlayerbotAuction::SendSellItem(bot, auctioneer, target, bid, buyout, duration);
 
         std::ostringstream out;
         out << "Sent sell: item=" << itemId
