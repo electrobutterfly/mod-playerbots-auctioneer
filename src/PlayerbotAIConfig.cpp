@@ -408,6 +408,8 @@ bool PlayerbotAIConfig::Initialize()
         sConfigMgr->GetOption<int32>("Playerbots.RandomBotAutoJoinBGRatedArena5v5Count", 0);
     LogInGroupOnly = sConfigMgr->GetOption<bool>("Playerbots.LogInGroupOnly", true);
     LogValuesPerTick = sConfigMgr->GetOption<bool>("Playerbots.LogValuesPerTick", false);
+    debugAuction = sConfigMgr->GetOption<bool>("Playerbots.DebugAuction", false);
+    fleeingEnabled = sConfigMgr->GetOption<bool>("Playerbots.FleeingEnabled", true);
     SummonAtInnkeepersEnabled = sConfigMgr->GetOption<bool>("Playerbots.SummonAtInnkeepersEnabled", true);
     RandomBotMinLevel = sConfigMgr->GetOption<int32>("Playerbots.RandomBotMinLevel", 1);
     RandomBotMaxLevel = sConfigMgr->GetOption<int32>("Playerbots.RandomBotMaxLevel", 80);

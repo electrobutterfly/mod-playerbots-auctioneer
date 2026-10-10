@@ -277,6 +277,8 @@ public:
     uint32 RandomBotTeleLowerLevel, RandomBotTeleHigherLevel;
     std::map<uint32, std::pair<uint32, uint32>> ZoneBrackets;
     bool LogInGroupOnly, LogValuesPerTick;
+    bool debugAuction;
+    bool fleeingEnabled;
     bool SummonAtInnkeepersEnabled;
     std::string CombatStrategies, NonCombatStrategies;
     std::string RandomBotCombatStrategies, RandomBotNonCombatStrategies;
