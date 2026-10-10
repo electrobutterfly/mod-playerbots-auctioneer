@@ -1067,6 +1067,124 @@ bool AhAction::Execute(Event event)
         return true;
     }
 
-    reply("Unknown ah subcommand. Usage: ah bid <auctionId> <priceCopper>");
+    if (subcommand == "sell")
+    {
+        uint32 itemId = 0;
+        uint32 bid = 0;
+        uint32 buyout = 0;
+        uint32 duration = 720;
+
+        if (!(iss >> itemId >> bid >> buyout) || !itemId || !bid)
+        {
+            reply("Usage: ah sell <itemId> <bidCopper> <buyoutCopper> [durationMinutes]");
+            return false;
+        }
+
+        if (!(iss >> duration))
+            duration = 720;
+        if (duration != 720 && duration != 1440 && duration != 2880)
+        {
+            reply("Duration must be 720 (12h), 1440 (24h), or 2880 (48h).");
+            return false;
+        }
+
+        if (buyout != 0 && buyout < bid)
+        {
+            reply("Buyout must be 0 (no buyout) or at least the bid.");
+            return false;
+        }
+
+        Creature* auctioneer = nullptr;
+        GuidVector const npcs = AI_VALUE(GuidVector, "nearest npcs");
+        for (ObjectGuid const& guid : npcs)
+        {
+            Creature* creature = botAI->GetCreature(guid);
+            if (!creature)
+                continue;
+            if (!creature->HasNpcFlag(UNIT_NPC_FLAG_AUCTIONEER))
+                continue;
+            if (bot->GetDistance(creature) > INTERACTION_DISTANCE)
+                continue;
+            auctioneer = creature;
+            break;
+        }
+
+        if (!auctioneer)
+        {
+            reply("No auctioneer within interaction range. Walk to one first.");
+            return false;
+        }
+
+        Item* target = nullptr;
+        for (Item* item : botAI->GetInventoryItems())
+        {
+            if (!item)
+                continue;
+            if (item->GetEntry() != itemId)
+                continue;
+            if (!item->CanBeTraded())
+                continue;
+            target = item;
+            break;
+        }
+
+        if (!target)
+        {
+            std::ostringstream why;
+            why << "No tradeable item with entry " << itemId << " in my bags.";
+            reply(why.str());
+            return false;
+        }
+
+        {
+            Creature* verify = bot->GetNPCIfCanInteractWith(auctioneer->GetGUID(), UNIT_NPC_FLAG_AUCTIONEER);
+            LOG_ERROR("playerbots", "[AH-DIAG] sell GetNPCIfCanInteractWith: {}",
+                      verify ? "OK" : "NULL");
+            LOG_ERROR("playerbots",
+                      "[AH-DIAG] sell item entry={} count={} tradable={} bag={} slot={}",
+                      target->GetEntry(), target->GetCount(),
+                      target->CanBeTraded() ? "yes" : "no",
+                      target->GetBagSlot(), target->GetSlot());
+            AuctionHouseEntry const* ahE =
+                AuctionHouseMgr::GetAuctionHouseEntryFromFactionTemplate(auctioneer->GetFaction());
+            if (!ahE)
+                LOG_ERROR("playerbots", "[AH-DIAG] sell no AuctionHouseEntry");
+            else
+                LOG_ERROR("playerbots", "[AH-DIAG] sell auctionHouseEntry OK houseId={}",
+                          uint32(ahE->houseId));
+        }
+
+        WorldPacket packet(CMSG_AUCTION_SELL_ITEM);
+        packet << auctioneer->GetGUID();
+        packet << uint32(1);
+        packet << target->GetGUID();
+        packet << uint32(target->GetCount());
+        packet << uint32(bid);
+        packet << uint32(buyout);
+        packet << uint32(duration);
+        packet.rpos(0);
+        bot->GetSession()->HandleAuctionSellItem(packet);
+
+        std::ostringstream out;
+        out << "Sent sell: item=" << itemId
+            << " x" << target->GetCount()
+            << " bid=" << bid
+            << " buyout=" << buyout
+            << " duration=" << duration
+            << " via " << auctioneer->GetName();
+        reply(out.str());
+
+        if (sPlayerbotAIConfig.debugAuction)
+        {
+            LOG_ERROR("playerbots",
+                      "[AH-TRACE] {} sent sell item={} x{} bid={} buyout={} dur={} to {} (entry {})",
+                      bot->GetName(), itemId, target->GetCount(), bid, buyout, duration,
+                      auctioneer->GetName(), auctioneer->GetEntry());
+        }
+
+        return true;
+    }
+
+    reply("Unknown ah subcommand. Usage: ah bid <auctionId> <priceCopper> | ah sell <itemId> <bidCopper> <buyoutCopper> [durationMinutes]");
     return false;
 }
