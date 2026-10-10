@@ -146,3 +146,29 @@ AiPlayerbot.Auction.BidIncrementPercent = 10
 # its calculated maximum willing price.
 # Default: 1 (enabled)
 AiPlayerbot.Auction.AllowBuyout = 1
+
+# GUIDs of the AH-bot characters (from mod-ah-bot-plus's AuctionHouseBot.GUIDs).
+# These are used to classify sellers for the buyer-preference logic.
+# Comma-separated, no spaces.
+# Example: "1002,1003,1004"
+AiPlayerbot.Auction.AhBotGUIDs = ""
+
+# Price this bot is willing to pay for an item, expressed as a multiple of the
+# item's vendor SellPrice. The bot rolls a random value in [min, max] per visit.
+AiPlayerbot.Auction.BuyPriceMultiplierMin = 5
+AiPlayerbot.Auction.BuyPriceMultiplierMax = 20
+
+# Seller preference aggression level:
+#   0 = custom (use the individual weights below)
+#   1 = mild     (RealPlayer:Playerbot:AhBot = 3:2:1)
+#   2 = strong   (10:5:1)
+#   3 = absolute (real players only, when any real listing exists for the item)
+AiPlayerbot.Auction.SellerPreference.Aggression = 1
+
+# Custom seller weights, only used when Aggression = 0.
+AiPlayerbot.Auction.SellerPreference.RealPlayer = 3
+AiPlayerbot.Auction.SellerPreference.Playerbot  = 2
+AiPlayerbot.Auction.SellerPreference.AhBot      = 1
+
+# If 1, the bot will not outbid a real player on an auction.
+AiPlayerbot.Auction.DontOutbidRealPlayers = 0

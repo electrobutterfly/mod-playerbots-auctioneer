@@ -481,6 +481,50 @@ bool PlayerbotAIConfig::Initialize()
     if (auctionBidIncrementPercent > 100)
         auctionBidIncrementPercent = 100;
     auctionAllowBuyout = sConfigMgr->GetOption<bool>("Playerbots.Auction.AllowBuyout", true);
+
+    // Buy-side tuning
+    auctionAhBotGUIDs.clear();
+    {
+        std::string const raw = sConfigMgr->GetOption<std::string>("Playerbots.Auction.AhBotGUIDs", "");
+        std::stringstream ss(raw);
+        std::string token;
+        while (std::getline(ss, token, ','))
+        {
+            token.erase(0, token.find_first_not_of(" \t"));
+            token.erase(token.find_last_not_of(" \t") + 1);
+            if (token.empty())
+                continue;
+            try
+            {
+                auctionAhBotGUIDs.push_back(static_cast<uint32>(std::stoul(token)));
+            }
+            catch (std::exception const&)
+            {
+                // ignore malformed entries
+            }
+        }
+    }
+
+    auctionBuyPriceMultiplierMin =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BuyPriceMultiplierMin", 5);
+    auctionBuyPriceMultiplierMax =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BuyPriceMultiplierMax", 20);
+    if (auctionBuyPriceMultiplierMax < auctionBuyPriceMultiplierMin)
+        auctionBuyPriceMultiplierMax = auctionBuyPriceMultiplierMin;
+
+    // Seller preference
+    auctionSellerPreferenceAggression =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellerPreference.Aggression", 1);
+    if (auctionSellerPreferenceAggression > 3)
+        auctionSellerPreferenceAggression = 3;
+    auctionSellerPreferenceRealPlayer =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellerPreference.RealPlayer", 3);
+    auctionSellerPreferencePlayerbot =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellerPreference.Playerbot", 2);
+    auctionSellerPreferenceAhBot =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellerPreference.AhBot", 1);
+    auctionDontOutbidRealPlayers =
+        sConfigMgr->GetOption<bool>("Playerbots.Auction.DontOutbidRealPlayers", false);
     fleeingEnabled = sConfigMgr->GetOption<bool>("Playerbots.FleeingEnabled", true);
     SummonAtInnkeepersEnabled = sConfigMgr->GetOption<bool>("Playerbots.SummonAtInnkeepersEnabled", true);
     RandomBotMinLevel = sConfigMgr->GetOption<int32>("Playerbots.RandomBotMinLevel", 1);
