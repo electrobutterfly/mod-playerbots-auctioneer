@@ -743,6 +743,17 @@ bool PlayerbotAIConfig::Initialize()
     RpgStatusProbWeight[RPG_OUTDOOR_PVP] = sConfigMgr->GetOption<int32>("Playerbots.RpgStatusProbWeight.OutdoorPvp", 10);
     RpgStatusProbWeight[RPG_DO_GATHER] = sConfigMgr->GetOption<int32>("Playerbots.RpgStatusProbWeight.DoGather", 15);
 
+    // Add Auctioneer
+    RpgStatusProbWeight[RPG_GO_AUCTIONEER] =
+        sConfigMgr->GetOption<int32>("Playerbots.RpgStatusProbWeight.GoAuctioneer", 3);
+
+    auctionVisitMinLevel =
+        sConfigMgr->GetOption<int32>("Playerbots.AuctionVisit.MinLevel", 10);
+    auctionVisitMinBagFillPercent =
+        sConfigMgr->GetOption<int32>("Playerbots.AuctionVisit.MinBagFillPercent", 85);
+    auctionVisitMinGoldCopper =
+        sConfigMgr->GetOption<int32>("Playerbots.AuctionVisit.MinGoldCopper", 10000);
+
     SyncLevelWithPlayers = sConfigMgr->GetOption<bool>("Playerbots.SyncLevelWithPlayers", false);
     RandomBotConcentrateInPlayerZone =
         sConfigMgr->GetOption<bool>("Playerbots.RandomBotConcentrateInPlayerZone", false);

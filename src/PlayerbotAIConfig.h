@@ -73,7 +73,9 @@ enum NewRpgStatus : int
     RPG_OUTDOOR_PVP = 8,
     // Roam the current zone harvesting herb/ore nodes
     RPG_DO_GATHER = 9,
-    RPG_STATUS_END = 10
+    // Auctioneer subsystem (local fork)
+    RPG_GO_AUCTIONEER = 10,
+    RPG_STATUS_END = 11
 };
 
 #define MAX_SPECNO 20
@@ -396,6 +398,10 @@ public:
     bool AutoDoQuests;
     bool EnableNewRpgStrategy;
     std::unordered_map<NewRpgStatus, uint32> RpgStatusProbWeight;
+    // Add Auctioneer
+    int32 auctionVisitMinLevel;
+    int32 auctionVisitMinBagFillPercent;
+    int32 auctionVisitMinGoldCopper;
     bool SyncLevelWithPlayers;
     bool RandomBotConcentrateInPlayerZone;
     bool AutoLearnQuestSpells;
