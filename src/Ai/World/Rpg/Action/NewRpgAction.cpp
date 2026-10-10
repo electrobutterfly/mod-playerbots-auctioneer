@@ -433,7 +433,7 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
     if (auto* data = std::get_if<NewRpgInfo::GoAuctioneer>(&botAI->rpgInfo.data))
     {
-        if (bot->GetDistance(data->pos) > INTERACTION_DISTANCE)
+        if (bot->GetDistance(data->pos) > 10.0f)
         {
             if (MoveFarTo(data->pos))
                 return true;
