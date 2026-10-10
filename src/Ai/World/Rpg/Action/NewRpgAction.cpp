@@ -31,6 +31,7 @@
 #include "TravelMgr.h"
 #include "WaypointMovementGenerator.h"
 #include "G3D/Vector2.h"
+#include "AuctionHouseMgr.h"
 #include <cmath>
 #include <cstdlib>
 
@@ -498,7 +499,7 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                           bot->GetDistance(auctioneer));
             }
 
-            WorldPacket packet(MSG_AUCTION_HELLO);
+                        WorldPacket packet(MSG_AUCTION_HELLO);
             packet << auctioneer->GetGUID();
             packet.rpos(0);
             bot->GetSession()->HandleAuctionHelloOpcode(packet);
@@ -506,6 +507,50 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
             LOG_DEBUG("playerbots",
                       "[New RPG] {} sent MSG_AUCTION_HELLO to {} (entry {}), now standing at AH",
                       bot->GetName(), auctioneer->GetName(), data->auctioneerEntry);
+
+            // Debug-only: read listings directly from the AuctionHouseMgr.
+            // Read-only, no session, no packet. Thread-safety note: this runs
+            // on a map thread while AuctionHouseMgr::Update() runs on the
+            // world thread; the read is expected to be benign but is not
+            // strictly safe. Will be replaced by the packet path when we
+            // need the client-side view (for bidding).
+            if (debugAuction)
+            {
+                AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction());
+                if (ahObj)
+                {
+                    uint32 const total = ahObj->Getcount();
+                    LOG_DEBUG("playerbots",
+                              "[AH-TRACE] {} listing read: {} auctions on this AH",
+                              bot->GetName(), total);
+
+                    uint32 logged = 0;
+                    for (auto it = ahObj->GetAuctionsBegin();
+                         it != ahObj->GetAuctionsEnd() && logged < 5;
+                         ++it, ++logged)
+                    {
+                        AuctionEntry* entry = it->second;
+                        if (!entry)
+                            continue;
+                        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry->item_template);
+                        LOG_DEBUG("playerbots",
+                                  "[AH-TRACE]   #{} item='{}' (entry {}) x{} startbid={} bid={} buyout={}",
+                                  entry->Id,
+                                  proto ? proto->Name1 : "<unknown>",
+                                  entry->item_template,
+                                  entry->itemCount,
+                                  entry->startbid,
+                                  entry->bid,
+                                  entry->buyout);
+                    }
+                }
+                else
+                {
+                    LOG_DEBUG("playerbots",
+                              "[AH-TRACE] {} listing read: no AuctionHouseObject for faction {}",
+                              bot->GetName(), auctioneer->GetFaction());
+                }
+            }
         }
 
         return false;
