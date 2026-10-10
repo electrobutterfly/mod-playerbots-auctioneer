@@ -367,6 +367,12 @@ public:
     bool   auctionCraftArbitrageEnabled;
     uint32 auctionCraftMarginPercent;
 
+    // How often the running worldserver polls auctioneer_baseline_item
+    // for a newer snapshot and reloads the in-memory caches in place.
+    // 0 disables the check entirely (reload only happens on boot).
+    // Default 5 minutes.
+    uint32 auctionBaselineReloadCheckMinutes;
+
     // Seller preference
     uint32 auctionSellerPreferenceAggression;
     uint32 auctionSellerPreferenceRealPlayer;

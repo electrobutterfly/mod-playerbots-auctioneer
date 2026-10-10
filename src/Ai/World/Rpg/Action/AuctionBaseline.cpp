@@ -6,6 +6,7 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "PlayerbotAIConfig.h"
+#include "ScriptMgr.h"
 #include <algorithm>
 
 namespace PlayerbotAuction
@@ -161,6 +162,60 @@ CategoryBaseline const* AuctionBaselineMgr::LookupCategory(
     return &it->second;
 }
 
+void AuctionBaselineMgr::Tick(uint32 diff)
+{
+    if (sPlayerbotAIConfig.auctionBaselineMode != 2)
+        return;
+
+    uint32 const intervalMs =
+        sPlayerbotAIConfig.auctionBaselineReloadCheckMinutes * 60 * 1000;
+    if (intervalMs == 0)
+        return;
+
+    _reloadCheckTimer += diff;
+    if (_reloadCheckTimer < intervalMs)
+        return;
+    _reloadCheckTimer = 0;
+
+    // Single-row aggregate. On an idle realm this touches the table a
+    // handful of times per hour; the value only ever changes when the
+    // parser has just imported a fresh snapshot.
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT MAX(`snapshot`) FROM `auctioneer_baseline_item`");
+    if (!result)
+        return;
+
+    Field* field = result->Fetch();
+    if (!field || field->IsNull())
+        return;
+
+    std::string newest = field->Get<std::string>();
+    if (newest.empty() || newest == _snapshot)
+        return;
+
+    LOG_INFO("playerbots",
+             ">> Auction baseline snapshot changed ({} -> {}), reloading",
+             _snapshot, newest);
+    Load();
+}
+
+// Runs on every world tick. Delegates to the manager, which is itself
+// rate-limited so the DB is only hit a few times per hour.
+class AuctionBaselineReloadScript : public WorldScript
+{
+public:
+    AuctionBaselineReloadScript()
+        : WorldScript("AuctionBaselineReloadScript",
+              { WORLDHOOK_ON_UPDATE })
+    {
+    }
+
+    void OnUpdate(uint32 diff) override
+    {
+        PlayerbotAuction::AuctionBaselineMgr::instance().Tick(diff);
+    }
+};
+
 bool ShouldListGivenBaselinePolicy(Player* bot, Item* item,
                                    std::vector<uint32> const& protectedReagents)
 {
@@ -231,7 +286,12 @@ bool ShouldListGivenBaselinePolicy(Player* bot, Item* item,
         }
     }
 
-    return true;
+        return true;
 }
 
 }  // namespace PlayerbotAuction
+
+void AddSC_auction_baseline_reload()
+{
+    new PlayerbotAuction::AuctionBaselineReloadScript();
+}
