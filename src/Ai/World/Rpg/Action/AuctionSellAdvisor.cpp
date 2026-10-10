@@ -5,6 +5,7 @@
  */
 
 #include "AuctionSellAdvisor.h"
+#include "AuctionBaseline.h"
 #include "AuctionHouseMgr.h"
 #include "ItemUsageValue.h"
 #include "Bag.h"
@@ -14,6 +15,7 @@
 #include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 #include <algorithm>
+#include <cmath>
 #include <vector>
 #include <unordered_map>
 
@@ -58,6 +60,37 @@ namespace
             default:
                 return false;
         }
+    }
+
+    // Draw a per-unit price from a triangular distribution over [lo, hi]
+    // with the peak at mid. The baseline carries only the trimmed low /
+    // median / high, so a triangular draw is the best approximation of
+    // the split-normal the reference data describes. Spreading each bot's
+    // listing slightly around the reference price is what stops every bot
+    // from copying the same number and producing a flat AH.
+    uint32 DrawBaselinePrice(uint32 lo, uint32 mid, uint32 hi)
+    {
+        if (lo > mid)
+            lo = mid;
+        if (hi < mid)
+            hi = mid;
+        if (lo == hi)
+            return mid ? mid : 1;
+        if (mid == 0)
+            return lo ? lo : 1;
+
+        double const span  = double(hi - lo);
+        double const c     = double(mid - lo) / span;
+        double const u     = frand(0.0, 1.0);
+        double       value;
+        if (u < c)
+            value = double(lo) + std::sqrt(u * span * double(mid - lo));
+        else
+            value = double(hi) - std::sqrt((1.0 - u) * span * double(hi - mid));
+
+        if (value < 1.0)
+            value = 1.0;
+        return uint32(value + 0.5);
     }
 }
 
@@ -115,17 +148,14 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
         return;
 
     // Vendor floor for the whole stack. Listing a stack below what a vendor
-    // would pay is a strictly losing trade: the deposit is spent and the
-    // returned coin is less than simply vendoring. This is the anchor that
-    // stops the undercut loop from walking prices into the ground.
+    // would pay is a strictly losing trade. Always applied last.
     uint32 vendorPerUnit = proto->SellPrice;
     if (vendorPerUnit < 1)
         vendorPerUnit = 1;
     uint32 const floorPrice = vendorPerUnit * count;
 
     // Market reference: the cheapest per-unit price any current listing asks
-    // for this item, normalised so it can be compared across stack sizes.
-    // 0 if nothing matching is up.
+    // for this item. 0 if nothing matching is up.
     uint32 lowestPerUnit = 0;
     if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction()))
     {
@@ -148,21 +178,49 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
         }
     }
 
+    // Baseline lookup. Only consulted when the admin selected Mode 2.
+    // A row is trusted only when there is actual listing data behind it;
+    // category-placeholder rows and one-sample rows are still usable but
+    // a row with fewer than three samples or zero bounds is discarded so
+    // the legacy path handles that item instead.
+    PlayerbotAuction::Baseline const* baseline = nullptr;
+    if (sPlayerbotAIConfig.auctionBaselineMode == 2)
+    {
+        uint8 const faction = (bot->GetTeamId() == TEAM_ALLIANCE) ? 2 : 6;
+        int32 const suffix  = item->GetItemRandomPropertyId();
+        baseline = PlayerbotAuction::AuctionBaselineMgr::instance()
+                       .LookupWithFallback(faction, proto->ItemId, suffix);
+
+        if (baseline &&
+            (baseline->priceSamples < 3 ||
+             baseline->priceLow   == 0 ||
+             baseline->priceHigh  == 0))
+        {
+            baseline = nullptr;
+        }
+    }
+
     uint32 basePrice = 0;
     if (lowestPerUnit > 0)
     {
-        // Market price for our own stack, derived from the cheapest listing
-        // per unit. This is the correct comparison across stack sizes: a
-        // stack of 20 does not compete against a stack of 1 at the same
-        // absolute buyout.
+        // Live market reference: undercut the cheapest per-unit listing.
+        // Correct comparison across stack sizes, since the cheapest listing
+        // may be a stack of 1 while ours is a stack of 20.
         basePrice = lowestPerUnit * count;
+    }
+    else if (baseline)
+    {
+        // No live listing. Draw a per-unit price from the reference band.
+        // This is the branch that stops fresh bots from defaulting to
+        // vendor * 5 and flooding the market.
+        uint32 perUnit = DrawBaselinePrice(baseline->priceLow,
+                                           baseline->priceMedian,
+                                           baseline->priceHigh);
+        basePrice = perUnit * count;
     }
     else
     {
-        // No market reference. Fall back to a multiple of vendor price, per
-        // item, times our stack. The old code used vendor * 10 with no count
-        // multiplier, so a stack of 20 one-copper items was priced as
-        // ~10 copper for the entire stack.
+        // No live listing and no baseline row. Legacy fallback.
         basePrice = vendorPerUnit * count * 5;
     }
 
@@ -178,20 +236,56 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
 
     uint32 sellPrice = basePrice - (basePrice * undercutPct / 100);
 
-    // Never list below the vendor floor. If undercutting would drop us below
-    // it, list at the floor instead — the item either sells above vendor or
-    // it doesn't sell at all, but the bot is not making a losing trade.
+    // Baseline floor and ceiling. Applied after the undercut so the floor
+    // actually holds even when the undercut would have gone below it.
+    // This is the rule that terminates the undercut race: once the cheapest
+    // live listing reaches priceLow * count, further undercuts from other
+    // bots cannot pull the price below that.
+    if (baseline)
+    {
+        uint64 const floorFromBaseline = uint64(baseline->priceLow) * count;
+        if (uint64(sellPrice) < floorFromBaseline)
+            sellPrice = (floorFromBaseline > 0x7FFFFFFF)
+                            ? 0x7FFFFFFF
+                            : uint32(floorFromBaseline);
+
+        uint64 const ceilingFromBaseline = uint64(baseline->priceHigh) * count;
+        if (uint64(sellPrice) > ceilingFromBaseline)
+            sellPrice = (ceilingFromBaseline > 0x7FFFFFFF)
+                            ? 0x7FFFFFFF
+                            : uint32(ceilingFromBaseline);
+    }
+
+    // Vendor floor, always applied last.
     if (sellPrice < floorPrice)
         sellPrice = floorPrice;
 
     if (sellPrice < 1)
         sellPrice = 1;
 
+    // Starting bid.
+    //   Mode 2 with a row: use the reference ratio (per-item when reliable,
+    //   class prior otherwise). This is what makes startbids look human
+    //   instead of always being exactly half the buyout.
+    //   Mode 1, or no baseline row: fall back to buyout / 2.
     uint32 bid = sellPrice / 2;
+    if (baseline)
+    {
+        uint32 ratioBp = baseline->bidRatioReliable
+                            ? baseline->bidRatioMedian
+                            : baseline->bidRatioClassPrior;
+        if (ratioBp == 0)
+            ratioBp = 5000;
+        uint64 const fromRatio = uint64(sellPrice) * ratioBp / 10000;
+        bid = (fromRatio > 0x7FFFFFFF) ? 0x7FFFFFFF : uint32(fromRatio);
+    }
+
     if (bid < 1)
         bid = 1;
+    if (bid > sellPrice)
+        bid = sellPrice;
 
-    outBid = bid;
+    outBid    = bid;
     outBuyout = sellPrice;
 }
 

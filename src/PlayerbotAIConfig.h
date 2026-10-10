@@ -356,6 +356,11 @@ public:
     uint32 auctionRelistUndercutPercentMax;
     bool auctionRunAnalysis;
 
+    // Auction baseline source.
+    //   1 = legacy (live-scan + vendor multiple, previous behaviour)
+    //   2 = consult auctioneer_baseline_item for pricing and startbids
+    uint8 auctionBaselineMode;
+
     // Seller preference
     uint32 auctionSellerPreferenceAggression;
     uint32 auctionSellerPreferenceRealPlayer;

@@ -303,3 +303,26 @@ AiPlayerbot.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005"
 # templates to pick suitable spares.
 # Default: 0 (disabled)
 AiPlayerbot.Auction.InitSpareInventory = 0
+
+####################################################################################################
+# BASELINE
+#
+# Selects how bots price their listings and pick their starting bids.
+#
+#   1 = legacy. Pricing is driven by the cheapest live listing for the
+#       item, with a fallback to a multiple of vendor SellPrice when
+#       nothing matching is listed. Startbid is always buyout / 2.
+#       This is the behaviour that existed before the baseline tables.
+#
+#   2 = baseline. The bot consults auctioneer_baseline_item for the item.
+#       When a row exists, prices are drawn from the reference band and
+#       the starting bid uses the observed MINBID/BUYOUT ratio. When no
+#       row exists (item never seen on the source market) the code falls
+#       through to the legacy behaviour above. No crash, no hard
+#       dependency on the table being populated.
+#
+# The table is populated out-of-band by the auctioneer_baseline tool;
+# see modules/mod-playerbots/auctioneer_baseline/README.md.
+#
+# Default: 1
+AiPlayerbot.Auction.Baseline.Mode = 0

@@ -11,6 +11,8 @@
 #include "AuctionSellAdvisor.h"
 #include "AuctionBuyAdvisor.h"
 #include "AuctionMailAdvisor.h"
+#include "AuctionBidTracker.h"
+#include "AuctionBaseline.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -745,16 +747,27 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 }
             }
         }
-        else if (!data->trackedBidsDone)
+                else if (!data->trackedBidsDone)
         {
-            // HELLO sent. Now check any in-progress auctions and re-bid if
-            // someone has outbid us and we can still afford to keep up.
+            // HELLO sent. Re-evaluate every in-progress bid before rebidding:
+            //   * auction still exists in the AH
+            //   * we are not the current high bidder
+            //   * we still want the item (ItemUsageValue, same source of truth
+            //     as AuctionBuyAdvisor::FindAuctionToBuy)
+            //   * the next minimum bid still fits under our original cap
+            //     and our current gold
+            // Drop the bid on any failing condition. Persistence is kept in
+            // sync on every drop, so a rebid is never chased with stale data.
             data->trackedBidsDone = true;
+
+            PlayerbotAuction::LoadTrackedBids(botAI);
 
             if (!botAI->trackedAuctions.empty())
             {
                 if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction()))
                 {
+                    AiObjectContext* ctx = botAI->GetAiObjectContext();
+
                     for (auto it = botAI->trackedAuctions.begin();
                          it != botAI->trackedAuctions.end(); )
                     {
@@ -763,6 +776,7 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                         // Auction has expired, sold, or been cancelled.
                         if (!tracked)
                         {
+                            PlayerbotAuction::RemoveTrackedBid(botAI, it->auctionId);
                             it = botAI->trackedAuctions.erase(it);
                             continue;
                         }
@@ -774,7 +788,32 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                             continue;
                         }
 
-                        // Someone else (or no one) is the highest bidder.
+                        // Re-evaluation: does the bot still want this item?
+                        // ItemUsageValue runs against the bot's current gear,
+                        // inventory, and quest log. A bot that has looted a
+                        // better item, vendored the reagents it was hoarding,
+                        // or finished the quest this was for will drop the bid
+                        // here instead of blindly rebidding a stale maximum.
+                        ItemUsage usage = ctx->GetValue<ItemUsage>(
+                            "item usage", tracked->item_template)->Get();
+
+                        if (!PlayerbotAuction::IsUsageWanted(usage))
+                        {
+                            if (sPlayerbotAIConfig.debugAuction)
+                            {
+                                LOG_ERROR("playerbots",
+                                          "[AH-TRACE] {} dropping tracked bid auctionId={} "
+                                          "item=[{}] usage={} (no longer wanted)",
+                                          bot->GetName(), tracked->Id,
+                                          tracked->item_template,
+                                          static_cast<uint32>(usage));
+                            }
+                            PlayerbotAuction::RemoveTrackedBid(botAI, it->auctionId);
+                            it = botAI->trackedAuctions.erase(it);
+                            continue;
+                        }
+
+                        // Still wanted. Compute the next minimum bid.
                         uint32 nextBid = tracked->bid > 0
                             ? tracked->bid + tracked->GetAuctionOutBid()
                             : tracked->startbid;
@@ -784,10 +823,11 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                             if (sPlayerbotAIConfig.debugAuction)
                             {
                                 LOG_ERROR("playerbots",
-                                          "[AH-TRACE] {} dropping tracked bid on auctionId={} "
+                                          "[AH-TRACE] {} dropping tracked bid auctionId={} "
                                           "(nextBid={} > max={} or unaffordable)",
                                           bot->GetName(), tracked->Id, nextBid, it->maxWilling);
                             }
+                            PlayerbotAuction::RemoveTrackedBid(botAI, it->auctionId);
                             it = botAI->trackedAuctions.erase(it);
                             continue;
                         }
@@ -828,6 +868,22 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 return false;
             }
 
+            // Baseline listing cap. When Mode 2 and the reference market
+            // for this item is already at its typical depth, skip the
+            // listing this visit instead of piling on. Mode 1 and missing
+            // baseline rows pass through with no cap applied.
+            if (!PlayerbotAuction::ShouldListGivenBaselineCap(bot, toSell))
+            {
+                if (sPlayerbotAIConfig.debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} skipping [{}] x{}: baseline cap reached",
+                              bot->GetName(), toSell->GetEntry(),
+                              toSell->GetCount());
+                }
+                return false;
+            }
+
             // Add Auctioneer
             // Price is computed at sell time so it reflects the market as it
             // stands right now, not as it stood when the visit began.
@@ -852,12 +908,16 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                           isRelist ? "yes" : "no");
             }
         }
-        else if (data->buyAuctionId != 0 && !data->buyDone)
+                else if (data->buyAuctionId != 0 && !data->buyDone)
         {
             PlayerbotAuction::SendPlaceBid(bot, auctioneer, data->buyAuctionId, data->buyPrice);
             data->buyDone = true;
 
             // Remember this auction so we re-bid if someone outbids us later.
+            // item_template and item_count are captured now, while the entry
+            // is still in the AH object, so the next visit's re-evaluation
+            // has the data it needs to run ItemUsageValue against the bot's
+            // current gear/quest state.
             if (sPlayerbotAIConfig.auctionMaxTrackedBids > 0)
             {
                 bool alreadyTracked = false;
@@ -866,14 +926,28 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
                 if (!alreadyTracked)
                 {
-                    while (botAI->trackedAuctions.size() >= sPlayerbotAIConfig.auctionMaxTrackedBids)
-                        botAI->trackedAuctions.erase(botAI->trackedAuctions.begin());
+                    AuctionEntry* entry = nullptr;
+                    if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction()))
+                        entry = ahObj->GetAuction(data->buyAuctionId);
 
-                    PlayerbotAI::TrackedAuction ta;
-                    ta.auctionId = data->buyAuctionId;
-                    ta.maxWilling = data->buyMaxWilling;
-                    ta.trackedSince = time(nullptr);
-                    botAI->trackedAuctions.push_back(ta);
+                    if (entry)
+                    {
+                        while (botAI->trackedAuctions.size() >= sPlayerbotAIConfig.auctionMaxTrackedBids)
+                        {
+                            PlayerbotAuction::RemoveTrackedBid(botAI, botAI->trackedAuctions.front().auctionId);
+                            botAI->trackedAuctions.erase(botAI->trackedAuctions.begin());
+                        }
+
+                        PlayerbotAI::TrackedAuction ta;
+                        ta.auctionId      = data->buyAuctionId;
+                        ta.itemTemplateId = entry->item_template;
+                        ta.itemCount      = entry->itemCount;
+                        ta.maxWilling     = data->buyMaxWilling;
+                        ta.trackedSince   = time(nullptr);
+
+                        botAI->trackedAuctions.push_back(ta);
+                        PlayerbotAuction::UpsertTrackedBid(botAI, ta);
+                    }
                 }
             }
 
