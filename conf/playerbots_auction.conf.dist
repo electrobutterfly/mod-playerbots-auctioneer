@@ -12,7 +12,7 @@
 #                                                                                                  #
 ####################################################################################################
 
-AiPlayerbot.DebugAuction = 1
+AiPlayerbot.DebugAuction = 0
 
 # Master switch for all Playerbot auction house interaction.
 # When 0, bots will not visit auctioneers for automation purposes, will not list items,
@@ -20,6 +20,30 @@ AiPlayerbot.DebugAuction = 1
 # (AiPlayerbot.AllowPlayerAuctionCommands) still work independently, for testing.
 # Default: 0 (disabled)
 AiPlayerbot.Auction.Enabled = 0
+
+# Allow players to drive auction commands on a bot ("ah bid", "ah sell").
+# 0 = disabled (default), 1 = enabled.
+AiPlayerbot.AllowPlayerAuctionCommands = 0
+
+# Chance a bot picks "go auctioneer" as its next RPG action. Only fires
+# when the bot meets the visit criteria below.
+# Default: 3
+AiPlayerbot.RpgStatusProbWeight.GoAuctioneer = 3
+
+# --- Auction visit gating ---
+# Minimum level for a bot to consider visiting an auctioneer.
+# Default: 10
+AiPlayerbot.AuctionVisit.MinLevel = 10
+
+# Bot will visit if bag fill percentage is at or above this value.
+# Set to 0 to disable the bag-pressure gate.
+# Default: 85
+AiPlayerbot.AuctionVisit.MinBagFillPercent = 85
+
+# Bot will visit if it has at least this much money (in copper).
+# 10000 = 1 gold. Set to 0 to disable the gold gate.
+# Default: 10000
+AiPlayerbot.AuctionVisit.MinGoldCopper = 10000
 
 ####################################################################################################
 # VISIT FREQUENCY

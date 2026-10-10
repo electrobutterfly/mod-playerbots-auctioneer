@@ -1446,27 +1446,6 @@ Playerbots.RpgStatusProbWeight.Rest = 5
 Playerbots.RpgStatusProbWeight.OutdoorPvp = 10
 Playerbots.RpgStatusProbWeight.DoGather = 15
 
-# Add Auctioneer
-# Chance a bot picks "go auctioneer" as its next RPG action.
-# Only fires when the bot meets the visit criteria below.
-# Default: 3
-AiPlayerbot.RpgStatusProbWeight.GoAuctioneer = 3
-
-# --- Auction visit gating ---
-# Minimum level for a bot to consider visiting an auctioneer.
-# Default: 10
-AiPlayerbot.AuctionVisit.MinLevel = 10
-
-# Bot will visit if bag fill percentage is at or above this value.
-# Set to 0 to disable the bag-pressure gate.
-# Default: 85
-AiPlayerbot.AuctionVisit.MinBagFillPercent = 85
-
-# Bot will visit if it has at least this much money (in copper).
-# 10000 = 1 gold. Set to 0 to disable the gold gate.
-# Default: 10000
-AiPlayerbot.AuctionVisit.MinGoldCopper = 10000
-
 # Bots' minimum and maximum level when teleporting in and out of a zone, according to the new RPG strategy
 # Format: Playerbots.ZoneBracket.zoneID = minLevel,maxLevel
 #
@@ -2585,24 +2564,6 @@ Playerbots.SpellDump = 0
 Playerbots.LogInGroupOnly = 1
 Playerbots.LogValuesPerTick = 0
 Playerbots.RandomChangeMultiplier = 1
-
-# Enable verbose auction-house tracing for Playerbot RPG.
-# When enabled, the bot logs detailed AH activity (approaching the
-# auctioneer, finding the NPC, sending the hello packet) at DEBUG level.
-# Requires Appender.Playerbots set to level 5 or higher so DEBUG lines
-# actually reach the log file.
-# Default: 0 (disabled)
-AiPlayerbot.DebugAuction = 0
-
-# Allow players to command bots to interact with the auction house
-# via whisper commands ("ah bid", "ah sell"). This is a debug/testing
-# switch; when disabled, only the bot's own AI can trigger auction
-# activity, and player whispers are ignored.
-# 0 = disabled (default, prevents player abuse)
-# 1 = enabled (players can drive the AH commands)
-# Reloadable via the playerbots config reload command.
-# Default: 0
-AiPlayerbot.AllowPlayerAuctionCommands = 0
 
 # Tell which spell is avoiding (experimental)
 # Default: 0 (disabled)
