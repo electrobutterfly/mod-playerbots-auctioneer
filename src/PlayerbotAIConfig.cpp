@@ -524,6 +524,18 @@ bool PlayerbotAIConfig::Initialize()
     auctionSellFullStacksOnly =
         sConfigMgr->GetOption<bool>("AiPlayerbot.Auction.SellFullStacksOnly", false);
 
+    auctionMaxSellsPerVisit =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.MaxSellsPerVisit", 3);
+
+    auctionRelistUndercutPercentMin =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.RelistUndercutPercentMin", 10);
+    auctionRelistUndercutPercentMax =
+        sConfigMgr->GetOption<uint32>("AiPlayerbot.Auction.RelistUndercutPercentMax", 20);
+    if (auctionRelistUndercutPercentMax < auctionRelistUndercutPercentMin)
+        auctionRelistUndercutPercentMax = auctionRelistUndercutPercentMin;
+    if (auctionRelistUndercutPercentMax > 100)
+        auctionRelistUndercutPercentMax = 100;
+
     // Seller preference
     auctionSellerPreferenceAggression =
         sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellerPreference.Aggression", 1);

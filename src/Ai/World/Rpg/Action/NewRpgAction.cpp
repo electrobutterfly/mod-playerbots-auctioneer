@@ -10,6 +10,7 @@
 #include "AuctionHelpers.h"
 #include "AuctionSellAdvisor.h"
 #include "AuctionBuyAdvisor.h"
+#include "AuctionMailAdvisor.h"
 #include "BroadcastHelper.h"
 #include "ChatHelper.h"
 #include "DBCStores.h"
@@ -310,11 +311,13 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             assert(data.pos != WorldPosition());
 
             // Wait for the action to finish: HELLO sent (lastReach set),
-            // sell / buy task attempted, and the tracked-bid pass done.
-            bool const sellComplete = data.sellItemGuid.IsEmpty() || data.sellDone;
+            // mail pass done, sell queue drained, buy task attempted, and
+            // the tracked-bid pass done.
+            bool const sellComplete = data.pendingSells.empty();
             bool const buyComplete  = data.buyAuctionId == 0 || data.buyDone;
             bool const bidsComplete = data.trackedBidsDone;
-            if (data.lastReach && sellComplete && buyComplete && bidsComplete)
+            bool const mailComplete = data.mailChecked;
+            if (data.lastReach && sellComplete && buyComplete && bidsComplete && mailComplete)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -566,6 +569,116 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 }
             }
         }
+                else if (!data->mailChecked)
+        {
+            // HELLO sent. Collect any returned-auction mail before doing
+            // anything else with the AH, and queue those items to sell.
+            data->mailChecked = true;
+
+            // Get MAIL AUCTION returned mail
+            std::vector<uint32> mailEntries;
+            if (PlayerbotAuction::BotHasExpiredAuctionMail(bot, mailEntries))
+            {
+                if (debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} relist: {} returned items in mail",
+                              bot->GetName(), mailEntries.size());
+                }
+
+                ObjectGuid mailbox = PlayerbotAuction::FindMailboxInRange(botAI);
+                if (mailbox.IsEmpty())
+                {
+                    // Not in range. Try to walk to the nearest mailbox, but
+                    // only if there is enough bag space to hold the returned
+                    // items. Otherwise skip; the next AH visit will retry.
+                    ObjectGuid nearest = PlayerbotAuction::FindNearestMailbox(botAI);
+                    if (!nearest.IsEmpty())
+                    {
+                        uint32 freeSlots = PlayerbotAuction::CountFreeBagSlots(bot);
+                        if (freeSlots >= mailEntries.size())
+                        {
+                            if (debugAuction)
+                            {
+                                LOG_ERROR("playerbots",
+                                          "[AH-TRACE] {} relist: mailbox out of range, walking",
+                                          bot->GetName());
+                            }
+                            if (MoveWorldObjectTo(nearest))
+                            {
+                                data->mailChecked = false;  // retry from closer
+                                return true;
+                            }
+                            if (debugAuction)
+                            {
+                                LOG_ERROR("playerbots",
+                                          "[AH-TRACE] {} relist: cannot path to mailbox, skipping this visit",
+                                          bot->GetName());
+                            }
+                        }
+                        else
+                        {
+                            if (debugAuction)
+                            {
+                                LOG_ERROR("playerbots",
+                                          "[AH-TRACE] {} relist: bag space insufficient "
+                                          "(need {} slots, have {}), skipping this visit",
+                                          bot->GetName(), mailEntries.size(), freeSlots);
+                            }
+                        }
+                    }
+                    else if (debugAuction)
+                    {
+                        LOG_ERROR("playerbots",
+                                  "[AH-TRACE] {} relist: no mailbox visible",
+                                  bot->GetName());
+                    }
+                }
+                else
+                {
+                    std::vector<uint32> collected = PlayerbotAuction::TakeExpiredAuctionMail(botAI, mailbox);
+
+                    if (!collected.empty())
+                    {
+                        if (debugAuction)
+                        {
+                            LOG_ERROR("playerbots",
+                                      "[AH-TRACE] {} relist: collected {} items from mailbox",
+                                      bot->GetName(), collected.size());
+                        }
+
+                        // Record returned entries for relist pricing.
+                        for (uint32 entry : collected)
+                        {
+                            if (std::find(data->returnedEntries.begin(),
+                                          data->returnedEntries.end(),
+                                          entry) == data->returnedEntries.end())
+                            {
+                                data->returnedEntries.push_back(entry);
+                            }
+                        }
+
+                        // Queue up to MaxSellsPerVisit returned items. These
+                        // go to the front of pendingSells so they list first.
+                        std::vector<ObjectGuid> relistSells;
+                        for (Item* it : botAI->GetInventoryItems())
+                        {
+                            if (relistSells.size() >= sPlayerbotAIConfig.auctionMaxSellsPerVisit)
+                                break;
+                            if (!it || !it->CanBeTraded())
+                                continue;
+                            if (std::find(collected.begin(), collected.end(), it->GetEntry()) == collected.end())
+                                continue;
+                            relistSells.push_back(it->GetGUID());
+                        }
+
+                        data->pendingSells.insert(data->pendingSells.begin(),
+                                                  relistSells.begin(),
+                                                  relistSells.end());
+                    }
+                }
+            }
+        }
         else if (!data->trackedBidsDone)
         {
             // HELLO sent. Now check any in-progress auctions and re-bid if
@@ -628,10 +741,16 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
             return false;
         }
-        else if (!data->sellItemGuid.IsEmpty() && !data->sellDone)
+        else if (!data->pendingSells.empty())
         {
-            // HELLO was sent on a previous tick. Send the sell now.
-            Item* toSell = bot->GetItemByGuid(data->sellItemGuid);
+            // Pop the next item off the queue and list it. Returned-auction
+            // items are at the front of the queue (mail step prepends them),
+            // and any item whose entry matches a returned entry uses the
+            // relist undercut range.
+            ObjectGuid nextGuid = data->pendingSells.front();
+            data->pendingSells.erase(data->pendingSells.begin());
+
+            Item* toSell = bot->GetItemByGuid(nextGuid);
             if (!toSell || !toSell->CanBeTraded())
             {
                 if (sPlayerbotAIConfig.debugAuction)
@@ -640,20 +759,31 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                               "[AH-TRACE] {} sell task item gone, skipping",
                               bot->GetName());
                 }
-                data->sellDone = true;
                 return false;
             }
 
+            // Add Auctioneer
+            // Price is computed at sell time so it reflects the market as it
+            // stands right now, not as it stood when the visit began.
+            bool const isRelist = std::find(data->returnedEntries.begin(),
+                                            data->returnedEntries.end(),
+                                            toSell->GetEntry()) != data->returnedEntries.end();
+
+            uint32 bid = 0;
+            uint32 buyout = 0;
+            PlayerbotAuction::ComputeSellPrice(botAI, toSell, bid, buyout, isRelist);
+
             PlayerbotAuction::SendSellItem(bot, auctioneer, toSell,
-                                            data->sellBid, data->sellBuyout, data->sellDuration);
-            data->sellDone = true;
+                                            bid, buyout,
+                                            sPlayerbotAIConfig.auctionSellDurationMinutes);
 
             if (sPlayerbotAIConfig.debugAuction)
             {
                 LOG_ERROR("playerbots",
-                          "[AH-TRACE] {} listed [{}] x{} bid={} buyout={} dur={}",
+                          "[AH-TRACE] {} listed [{}] x{} bid={} buyout={} dur={} relist={}",
                           bot->GetName(), toSell->GetEntry(), toSell->GetCount(),
-                          data->sellBid, data->sellBuyout, data->sellDuration);
+                          bid, buyout, sPlayerbotAIConfig.auctionSellDurationMinutes,
+                          isRelist ? "yes" : "no");
             }
         }
         else if (data->buyAuctionId != 0 && !data->buyDone)

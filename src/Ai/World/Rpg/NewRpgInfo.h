@@ -40,12 +40,15 @@ struct NewRpgInfo
         WorldPosition pos{};
         uint32 auctioneerEntry{0};
         uint32 lastReach{0};
-        // Optional sell task. If sellItemGuid is empty, no sell was queued.
-        ObjectGuid sellItemGuid{};
-        uint32 sellBid{0};
-        uint32 sellBuyout{0};
-        uint32 sellDuration{0};
-        bool sellDone{false};
+        // Get MAIL AUCTION returned mail
+        bool mailChecked{false};
+        // FIFO queue of items to sell this visit, in order. Returned-auction
+        // items are prepended by the mail step; the normal single sell pick
+        // (if any) sits at the back.
+        std::vector<ObjectGuid> pendingSells;
+        // Entries that came from returned auction mail. Any item whose entry
+        // is in this list uses the relist undercut range.
+        std::vector<uint32> returnedEntries;
         // Optional buy task. If buyAuctionId is 0, no buy was queued.
         uint32 buyAuctionId{0};
         uint32 buyPrice{0};
@@ -138,11 +141,8 @@ struct NewRpgInfo
     void ChangeToGoGrind(WorldPosition pos);
     void ChangeToGoCamp(WorldPosition pos);
     // Add Auctioneer
-        void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
-                              ObjectGuid sellItemGuid = ObjectGuid::Empty,
-                              uint32 sellBid = 0,
-                              uint32 sellBuyout = 0,
-                              uint32 sellDuration = 0,
+    void ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
+                              std::vector<ObjectGuid> const& pendingSells = {},
                               uint32 buyAuctionId = 0,
                               uint32 buyPrice = 0,
                               uint32 buyMaxWilling = 0);

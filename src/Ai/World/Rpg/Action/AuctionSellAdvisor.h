@@ -27,10 +27,11 @@ namespace PlayerbotAuction
     //   - not currently equipped
     SellCandidate FindItemToSell(PlayerbotAI* botAI);
 
-    // Compute a listing price for a given item based on the currently-cheapest
-    // matching listing on the auction house, or a vendor-price multiple if no
-    // listing exists. Result is written into outBid and outBuyout in copper.
-    void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& outBuyout);
+    // Compute a listing price for a given item. isRelist switches the undercut
+    // range to the more aggressive relist percent band and leaves everything
+    // else (current-market base, vendor fallback, bid = buyout/2) unchanged.
+    void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& outBuyout,
+         bool isRelist = false);
 
     // True if the item should be protected from selling because the bot's class
     // needs it as a reagent (portal runes, ankhs, soul shards, etc.).
