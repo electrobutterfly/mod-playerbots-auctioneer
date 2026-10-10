@@ -854,7 +854,10 @@ void PlayerbotFactory::Randomize(bool incremental)
             ClearAllItems();
         }
     }
-    ClearInventory();
+    // On a full (non-incremental) randomize we want a clean slate; on an
+    // incremental one we preserve auction-eligible items so bots don't lose
+    // accumulated loot every time they re-randomize.
+    ClearInventory(incremental);
     bot->RemoveAllSpellCooldown();
     UnbindInstance();
 
@@ -1955,12 +1958,15 @@ void PlayerbotFactory::InitTalentsByParsedSpecLink(Player* bot, std::vector<std:
 class DestroyItemsVisitor : public IterateItemsVisitor
 {
 public:
-    DestroyItemsVisitor(Player* bot) : IterateItemsVisitor(), bot(bot) {}
+    DestroyItemsVisitor(Player* bot, bool preserveAuctionItems = false)
+        : IterateItemsVisitor(), bot(bot), preserveAuctionItems(preserveAuctionItems)
+    {
+    }
 
     bool Visit(Item* item) override
     {
         uint32 id = item->GetTemplate()->ItemId;
-        if (CanKeep(id))
+        if (CanKeep(item))
         {
             keep.insert(id);
             return true;
@@ -1971,18 +1977,41 @@ public:
     }
 
 private:
-    bool CanKeep(uint32 id)
+    bool CanKeep(Item* item)
     {
+        uint32 id = item->GetTemplate()->ItemId;
         if (keep.find(id) != keep.end())
             return false;
 
         if (sPlayerbotAIConfig.IsInRandomQuestItemList(id))
             return true;
 
+        // On incremental randomize, keep items that a returning bot would still
+        // have in its bags: tradeable, quality >= Normal, unbound gear and
+        // materials that would list on the auction house. Without this, the
+        // periodic randomize wipes every looted green/blue and the bot is left
+        // with nothing to sell.
+        if (preserveAuctionItems &&
+            sPlayerbotAIConfig.auctionEnabled &&
+            sPlayerbotAIConfig.auctionEnableSelling)
+        {
+            ItemTemplate const* proto = item->GetTemplate();
+            if (proto &&
+                proto->SellPrice > 0 &&
+                proto->Quality >= ITEM_QUALITY_NORMAL &&
+                !item->IsSoulBound() &&
+                proto->Bonding != BIND_WHEN_PICKED_UP &&
+                proto->Bonding != BIND_QUEST_ITEM)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
     Player* bot;
+    bool preserveAuctionItems;
     std::set<uint32> keep;
 };
 
@@ -3957,9 +3986,9 @@ void PlayerbotFactory::InitInstanceQuests()
     bot->SetUInt32Value(PLAYER_XP, currentXP);
 }
 
-void PlayerbotFactory::ClearInventory()
+void PlayerbotFactory::ClearInventory(bool preserveAuctionItems)
 {
-    DestroyItemsVisitor visitor(bot);
+    DestroyItemsVisitor visitor(bot, preserveAuctionItems);
     IterateItems(&visitor);
 }
 
