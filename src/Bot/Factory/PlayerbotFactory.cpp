@@ -2908,50 +2908,10 @@ inline Item* StoreNewItemInInventorySlot(Player* player, uint32 newItemId, uint3
 
 void PlayerbotFactory::InitBags(bool destroyOld)
 {
-    // Bag size scales with level so a level 1 bot is not walking around
-    // with four endgame Portable Holes. The tiers roughly follow what a
-    // real player would have equipped at each level bracket: starter
-    // pouches in the first ten levels, progressively larger bags through
-    // the mid brackets, and 20+ slot bags only at the very top.
-    //
-    //   level 70+   24 slots   Portable Hole              (51809)
-    //   level 60-69 22 slots   Glacial Bag                (22246)
-    //   level 50-59 16 slots   Mooncloth Bag              (14155)
-    //   level 40-49 14 slots   Mageweave Bag              (10050)
-    //   level 30-39 12 slots   Small Silk Pack            (4245)
-    //   level 20-29 10 slots   Huge Brown Sack            (4496)
-    //   level 10-19  8 slots   Blue Leather Bag           (856)
-    //   level 0-9    6 slots   Small Brown Pouch          (805)
-    //
-    // If you want a different progression, this table is the only place
-    // you need to touch.
-    struct BagTier { uint32 minLevel; uint32 itemId; };
-    static constexpr BagTier kBagTiers[] = {
-        { 70, 51809 },
-        { 60, 22246 },
-        { 50, 14155 },
-        { 40, 10050 },
-        { 30, 4245  },
-        { 20, 4496  },
-        { 10, 856   },
-        { 0,  805   },
-    };
-
-    uint32 newItemId = kBagTiers[std::size(kBagTiers) - 1].itemId;
-    for (BagTier const& tier : kBagTiers)
-    {
-        if (level >= tier.minLevel)
-        {
-            newItemId = tier.itemId;
-            break;
-        }
-    }
-
     for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
     {
+        uint32 newItemId = 51809;
         Item* old_bag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
-
-        // Already correct, nothing to do.
         if (old_bag && old_bag->GetTemplate()->ItemId == newItemId)
             continue;
 
@@ -2959,23 +2919,18 @@ void PlayerbotFactory::InitBags(bool destroyOld)
         if (!CanEquipUnseenItem(slot, dest, newItemId))
             continue;
 
-        if (old_bag)
-        {
-            // Slot occupied by the wrong bag. If the caller asked us to
-            // replace it, destroy it and continue to the equip below.
-            // Otherwise leave it alone and skip this slot.
-            if (!destroyOld)
-                continue;
-
+        if (old_bag && destroyOld)
             bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
-            // The pointer is now dangling. Explicitly clear it so the
-            // guard below does not fire and skip the replacement. This
-            // was the bug that left bots with empty bag slots after a
-            // re-randomize destroyed their old bag.
-            old_bag = nullptr;
-        }
+
+        if (old_bag)
+            continue;
 
         bot->EquipNewItem(dest, newItemId, true);
+        // if (newItem)
+        // {
+        //     newItem->AddToWorld();
+        //     newItem->AddToUpdateQueueOf(bot);
+        // }
     }
 }
 
