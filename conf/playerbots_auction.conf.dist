@@ -117,11 +117,14 @@ Playerbots.Auction.RunAnalysis = 0
 
 # Chance a bot picks "go auctioneer" as its next RPG action.
 # Only fires when the bot meets the visit criteria below.
-# Default: 3
-Playerbots.RpgStatusProbWeight.GoAuctioneer = 3
+# 20 gives ~13% — a bot visits a few times per day
+# Default: 20
+Playerbots.RpgStatusProbWeight.GoAuctioneer = 20
 
 # Minimum level for a bot to consider visiting an auctioneer.
 # Bots below this level ignore the AH entirely.
+# Level-1 bots have nothing worth listing. Level 10 matches the RPG teleport 
+# gate and is when a player would first see an AH
 # Default: 10
 Playerbots.AuctionVisit.MinLevel = 10
 
@@ -134,17 +137,17 @@ Playerbots.AuctionVisit.MinLevel = 10
 Playerbots.AuctionVisit.MinBagFillPercent = 85
 
 # Bot will visit if it has at least this much money, in copper.
-# 10000 = 1 gold. This is a floor so bots with nothing to spend don't
+# 100000 = 10 gold. This is a floor so bots with nothing to spend don't
 # waste visits. Set to 0 to disable the gold gate.
-# Default: 10000
-Playerbots.AuctionVisit.MinGoldCopper = 10000
+# Default: 100000
+Playerbots.AuctionVisit.MinGoldCopper = 100000
 
 # Minimum and maximum minutes between two auction house visits by the same bot.
 # The actual delay is randomized uniformly between Min and Max. This is
 # a per-bot cooldown, not a global rate limit — the global rate is
 # controlled by the RPG weight above.
-# Default: 10 (min), 120 (max)
-Playerbots.Auction.VisitMinMinutes = 10
+# Default: 30 (min), 120 (max)
+Playerbots.Auction.VisitMinMinutes = 30
 Playerbots.Auction.VisitMaxMinutes = 120
 
 ####################################################################################################
@@ -177,8 +180,8 @@ Playerbots.Auction.MaxActiveListingsPerBot = 100
 # auction house visit, in addition to the one normal sell pick per visit.
 # Returned items beyond this cap wait for the next AH visit.
 # 0 disables multi-relist (only the normal single sell pick per visit).
-# Default: 10
-Playerbots.Auction.MaxSellsPerVisit = 10
+# Default: 5
+Playerbots.Auction.MaxSellsPerVisit = 5
 
 ####################################################################################################
 # 3.2 Pricing and Undercut
@@ -197,9 +200,9 @@ Playerbots.Auction.SellUndercutPercentMax = 15
 # those items (it still undercuts the currently-cheapest matching listing).
 # The relist band is a bit more aggressive because the item already failed
 # to sell once at the original price.
-# Default: 10 (min), 20 (max)
-Playerbots.Auction.RelistUndercutPercentMin = 10
-Playerbots.Auction.RelistUndercutPercentMax = 20
+# Default: 5 (min), 15 (max)
+Playerbots.Auction.RelistUndercutPercentMin = 5
+Playerbots.Auction.RelistUndercutPercentMax = 15
 
 ####################################################################################################
 # 3.3 What the Bot Is Allowed to Sell
@@ -220,8 +223,10 @@ Playerbots.Auction.MinSellValueCopper = 100
 #   4 = epic (purple)
 #   5 = legendary
 # Values above 6 are clamped to 6.
-# Default: 2 (uncommon)
-Playerbots.Auction.MinSellQuality = 2
+# Default: 1 (Do not raise to 2. Herbs, ore, leather, cloth and most trade goods are quality 1
+# (white). Raising to 2 would silently stop bots selling their gathered mats, which is a large
+# fraction of the market.)
+Playerbots.Auction.MinSellQuality = 1
 
 # If 1, only sell full stacks of stackable items. Partial stacks
 # (e.g. 7 of a 20-max item) are skipped as sell candidates.
@@ -535,14 +540,14 @@ Playerbots.Auction.Baseline.Mode = 2
 # bot's bags until either the recipe stops being profitable or the bot
 # actually crafts the item. Only has effect when Mode = 2.
 # Default: 1 (enabled)
-Playerbots.Auction.Baseline.CraftArbitrageEnabled = 1
+Playerbots.Auction.Baseline.CraftArbitrageEnabled = 0
 
 # Minimum margin, in percent, above reagent cost before a craft's reagents
 # are reserved. 10 means the crafted output must be worth at least 110% of
 # the reagent cost before the bot holds the reagents back. Clamped to
 # [0, 500].
-# Default: 10
-Playerbots.Auction.Baseline.CraftMarginPercent = 10
+# Default: 15
+Playerbots.Auction.Baseline.CraftMarginPercent = 15
 
 # How often the running worldserver checks whether the auctioneer tool has
 # imported a newer snapshot, and if so reloads the in-memory baseline
@@ -555,9 +560,9 @@ Playerbots.Auction.Baseline.CraftMarginPercent = 10
 # but only when the snapshot column actually changes.
 #
 # Recommended cadence: whatever your parser runs on, or shorter. If you
-# run the parser every 12 hours, 8 hours is plenty — the check itself is free.
-# Default: 480
-Playerbots.Auction.Baseline.ReloadCheckMinutes = 480
+# run the parser every 12 hours, 1 hour is plenty — the check itself is free.
+# Default: 60
+Playerbots.Auction.Baseline.ReloadCheckMinutes = 60
 
 ####################################################################################################
 # 8. LOOT
