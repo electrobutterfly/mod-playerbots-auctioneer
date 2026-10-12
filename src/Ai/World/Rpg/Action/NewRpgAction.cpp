@@ -1536,6 +1536,23 @@ bool AhAction::Execute(Event event)
         return false;
     }
 
+    // Auction commands are GM-only. This is a second, independent gate on
+    // top of allowPlayerAuctionCommands: the config key controls whether
+    // GMs may use them at all; this check enforces that only a GM-level
+    // session can actually reach them. A regular player who somehow gets
+    // through (whisper, party message, chat shortcut) is rejected and the
+    // attempt is logged so abuse is visible in the log.
+    if (!owner->GetSession() ||
+        owner->GetSession()->GetSecurity() < SEC_GAMEMASTER)
+    {
+        LOG_WARN("playerbots",
+                 "[AH-TRACE] Non-GM {} (security {}) attempted AH command",
+                 owner->GetName(),
+                 owner->GetSession() ? owner->GetSession()->GetSecurity() : 0);
+        reply("Auction commands are restricted to Game Masters.");
+        return false;
+    }
+
     std::string const text = event.getParam();
     if (text.empty())
     {
