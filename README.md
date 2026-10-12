@@ -516,3 +516,25 @@ The baseline data format and the price-band approach are adapted from [mod-aucti
 The seller and buyer pricing comparison logic is built against [mod-ah-bot-plus](https://github.com/NathanHandley/mod-ah-bot-plus), which provides the reference `CalculateItemValue` implementation that this subsystem benchmarks against.
 
 The auction-house subsystem builds on the movement, chat, and personality infrastructure of [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots), without which none of this would be possible.
+
+------
+
+## Also check our other modules:
+
+### mod-afk-kicker
+
+A module that automatically kicks players who remain AFK (Away From Keyboard) for longer than a configurable duration, useful for high-population servers where inactive sessions consume player slots, memory, and CPU.
+
+[mod-afk-kicker for AzerothCore-wotlk](https://github.com/electrobutterfly/mod-afk-kicker)
+
+[mod-afk-kicker for TrinityCore 3.3.5](https://github.com/electrobutterfly/trinitycore-afk-kicker)
+
+
+
+### mod-ip-limiter
+
+A module that limits how many players may connect from a single IP address. When the limit is exceeded, every player from that IP is kicked. Specific IP addresses (e.g. internet cafés, LAN parties, or your own office) can be whitelisted and exempted from the limit.
+
+[mod-ip-limiter for AzerothCore-wotlk](https://github.com/electrobutterfly/mod-ip-limiter)
+
+[mod-ip-limiter for TrinityCore 3.3.5](https://github.com/electrobutterfly/trinitycore-ip-limiter)
