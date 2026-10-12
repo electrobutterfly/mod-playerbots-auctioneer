@@ -324,8 +324,11 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
 
 SellCandidate FindItemToSell(PlayerbotAI* botAI)
 {
-    LOG_ERROR("playerbots", "[AH-TRACE] FindItemToSell CALLED bot={}",
-              (botAI && botAI->GetBot()) ? botAI->GetBot()->GetName() : "<null>");
+    if (sPlayerbotAIConfig.debugAuction)
+    {
+        LOG_DEBUG("playerbots", "[AH-TRACE] FindItemToSell CALLED bot={}",
+                  (botAI && botAI->GetBot()) ? botAI->GetBot()->GetName() : "<null>");
+    }
 
     SellCandidate result;
     if (!botAI)
