@@ -104,6 +104,22 @@ Playerbots.DebugAuction = 0
 # Default: 0 (disabled)
 Playerbots.Auction.RunAnalysis = 0
 
+# Allows a GM to drive a bot's AH activity through chat:
+#   whisper the bot with "ah bid <auctionId> <priceCopper>"
+#   whisper the bot with "ah sell <itemId> <bidCopper> <buyoutCopper> [durationMinutes]"
+#   whisper the bot with "ah buypick"
+#   whisper the bot with "ah sellpick"
+#
+# Auction commands are always restricted to Game Master accounts
+# (security level SEC_GAMEMASTER or higher). This config key is a
+# master switch for whether GMs may use them at all; it does not grant
+# access to regular players. Non-GM attempts are rejected and logged
+# at WARN level with an [AH-TRACE] prefix so server operators can
+# audit who is trying to reach them.
+#
+# Default: 0 (disabled)
+Playerbots.AllowPlayerAuctionCommands = 0
+
 ####################################################################################################
 # 2. AUCTION HOUSE VISITS
 #
