@@ -278,8 +278,9 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
     switch (status)
     {
         case RPG_IDLE:
-            return RandomChangeStatus({RPG_GO_CAMP, RPG_GO_GRIND, RPG_GO_AUCTIONEER, RPG_WANDER_RANDOM, RPG_WANDER_NPC,
-                                       RPG_DO_QUEST, RPG_TRAVEL_FLIGHT, RPG_REST, RPG_OUTDOOR_PVP, RPG_DO_GATHER});
+            return RandomChangeStatus({RPG_GO_CAMP, RPG_GO_GRIND, RPG_GO_AUCTIONEER, RPG_GO_VENDOR, RPG_WANDER_RANDOM,
+                                       RPG_WANDER_NPC, RPG_DO_QUEST, RPG_TRAVEL_FLIGHT, RPG_REST, RPG_OUTDOOR_PVP,
+                                       RPG_DO_GATHER});
 
         case RPG_GO_GRIND:
         {
@@ -303,6 +304,24 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             if (bot->GetExactDist(originalPos) < 10.0f)
             {
                 info.ChangeToWanderNpc();
+                return true;
+            }
+            break;
+        }
+        // Add Vendor
+        case RPG_GO_VENDOR:
+        {
+            auto& data = std::get<NewRpgInfo::GoVendor>(info.data);
+            assert(data.pos != WorldPosition());
+
+            if (data.lastReach && data.vendorSellDone && data.disenchantDone)
+            {
+                info.ChangeToWanderNpc();
+                return true;
+            }
+            if (info.HasStatusPersisted(statusGoVendorDuration))
+            {
+                info.ChangeToIdle();
                 return true;
             }
             break;
@@ -1158,6 +1177,155 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
     return false;
 }
+
+// Add Vendor
+// Walks the bot to the nearest vendor, then on arrival runs two passes:
+// a one-shot vendor sell (which handles every item classified
+// ITEM_USAGE_VENDOR, i.e. old soulbound gear and cheap loot), followed by
+// a disenchant pass for bots with Enchanting. Both passes are idempotent;
+// the status update transitions out once lastReach && vendorSellDone &&
+// disenchantDone are all true.
+bool NewRpgGoVendorAction::Execute(Event /*event*/)
+{
+    if (SearchQuestGiverAndAcceptOrReward())
+        return true;
+
+    if (auto* data = std::get_if<NewRpgInfo::GoVendor>(&botAI->rpgInfo.data))
+    {
+        bool const debugAuction = sPlayerbotAIConfig.debugAuction;
+        float const distToPos = bot->GetDistance(data->pos);
+
+        if (debugAuction && distToPos < 30.0f)
+        {
+            LOG_DEBUG("playerbots",
+                      "[AH-TRACE] {} approaching vendor: distToPos={:.2f} entry={} lastReach={}",
+                      bot->GetName(), distToPos, data->vendorEntry, data->lastReach);
+        }
+
+        if (distToPos > 10.0f)
+        {
+            if (MoveFarTo(data->pos))
+                return true;
+            return MoveRandomNear(10.0f);
+        }
+
+        Creature* vendor = bot->FindNearestCreature(data->vendorEntry, INTERACTION_DISTANCE * 3);
+        if (!vendor)
+        {
+            LOG_DEBUG("playerbots",
+                      "[AH-TRACE] {} reached vendor position but cannot find entry {} nearby, aborting",
+                      bot->GetName(), data->vendorEntry);
+            botAI->rpgInfo.ChangeToIdle();
+            return true;
+        }
+
+        if (debugAuction)
+        {
+            LOG_DEBUG("playerbots",
+                      "[AH-TRACE] {} found vendor {} (entry {}), distToNPC={:.2f}",
+                      bot->GetName(), vendor->GetName(), data->vendorEntry,
+                      bot->GetDistance(vendor));
+        }
+
+        // INTERACTION_DISTANCE is 5.55 yards. If the outer 10-yard arrival
+        // radius caught us short, walk the last few yards.
+        if (bot->GetDistance(vendor) > INTERACTION_DISTANCE)
+        {
+            if (MoveFarTo(vendor))
+                return true;
+            return false;
+        }
+
+        // First-tick-on-arrival initialisation.
+        if (!data->lastReach)
+        {
+            data->lastReach = getMSTime();
+
+            // Per-bot cooldown, so the bot doesn't immediately re-qualify
+            // for another vendor visit once this one ends.
+            {
+                uint32 const minMin = sPlayerbotAIConfig.vendorVisitMinMinutes;
+                uint32 const maxMin = sPlayerbotAIConfig.vendorVisitMaxMinutes;
+                uint32 const cooldownMin = urand(minMin, maxMin > minMin ? maxMin : minMin);
+                botAI->nextVendorVisitTime = time(nullptr) + cooldownMin * 60;
+            }
+
+            if (debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} arrived at vendor {} (entry {}), starting sell pass",
+                          bot->GetName(), vendor->GetName(), data->vendorEntry);
+            }
+        }
+
+        // Vendor sell pass. Runs once per visit. SellVendorItemsVisitor
+        // filters to ITEM_USAGE_VENDOR and skips ITEM_USAGE_AH items, so
+        // anything that should stay on the auction house is left alone.
+        if (!data->vendorSellDone)
+        {
+            data->vendorSellDone = true;
+            bool const sold = botAI->DoSpecificAction("sell", Event("rpg action", "vendor"), true);
+            if (debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} vendor sell pass complete (sold anything={})",
+                          bot->GetName(), sold ? "yes" : "no");
+            }
+            return false;
+        }
+
+        // Disenchant pass. Only for bots with Enchanting. One cast per tick,
+        // until DisEnchantRandomItemAction returns false (nothing left to
+        // disenchant) or the safety cap is hit.
+        if (!data->disenchantDone)
+        {
+            if (!botAI->HasSkill(SKILL_ENCHANTING))
+            {
+                data->disenchantDone = true;
+                return false;
+            }
+
+            constexpr uint32 kMaxDisenchantAttempts = 30;
+            if (data->disenchantAttempts >= kMaxDisenchantAttempts)
+            {
+                if (debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} disenchant pass hit cap ({} attempts, {} successes), stopping",
+                              bot->GetName(), data->disenchantAttempts, data->disenchantSuccesses);
+                }
+                data->disenchantDone = true;
+                return false;
+            }
+
+            ++data->disenchantAttempts;
+            bool const ok = botAI->DoSpecificAction("disenchant random item", Event(), true);
+            if (!ok)
+            {
+                data->disenchantDone = true;
+                if (debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} disenchant pass complete ({} successes)",
+                              bot->GetName(), data->disenchantSuccesses);
+                }
+                return false;
+            }
+
+            ++data->disenchantSuccesses;
+            // Let the cast finish before trying the next one.
+            botAI->SetNextCheckDelay(sPlayerbotAIConfig.ReactDelay * 10);
+            return false;
+        }
+
+        // Both passes are done. The status update will transition us out on
+        // the next tick.
+        return false;
+    }
+
+    return false;
+}
+
 bool NewRpgWanderRandomAction::Execute(Event /*event*/)
 {
     if (SearchQuestGiverAndAcceptOrReward())

@@ -70,6 +70,8 @@ protected:
     const int32 statusDoGatherDuration = 15 * MINUTE * IN_MILLISECONDS;
     // Auctioneer subsystem
     const int32 statusGoAuctioneerDuration = 5 * MINUTE  * IN_MILLISECONDS ;
+    // Add Vendor
+    const int32 statusGoVendorDuration = 3 * MINUTE  * IN_MILLISECONDS ;
 };
 
 class NewRpgGoGrindAction : public NewRpgBaseAction
@@ -130,6 +132,14 @@ class NewRpgGoAuctioneerAction : public NewRpgBaseAction
 {
 public:
     NewRpgGoAuctioneerAction(PlayerbotAI* botAI) : NewRpgBaseAction(botAI, "new rpg go auctioneer") {}
+    bool Execute(Event event) override;
+};
+
+// Add Vendor
+class NewRpgGoVendorAction : public NewRpgBaseAction
+{
+public:
+    NewRpgGoVendorAction(PlayerbotAI* botAI) : NewRpgBaseAction(botAI, "new rpg go vendor") {}
     bool Execute(Event event) override;
 };
 

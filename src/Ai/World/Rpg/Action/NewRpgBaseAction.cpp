@@ -1137,6 +1137,63 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
     return false;
 }
 
+// Add Vendor
+// Decides whether a bot should take a vendor visit. Mirrors the structure
+// of ShouldVisitAuctioneer. A bot qualifies if it has a reachable vendor on
+// the current map, its vendor cooldown has expired, its level meets the
+// floor, and at least one of the two pressure gates is on: bag fill above
+// the threshold, or vendorable/disenchantable items in bags. The cooldown
+// limits how often this fires; without it, any bot with a single soulbound
+// item would keep rolling for a visit at every RPG status transition.
+bool NewRpgBaseAction::ShouldVisitVendor()
+{
+    if (!bot)
+        return false;
+
+    if (!sPlayerbotAIConfig.auctionEnabled)
+        return false;
+
+    // Per-bot cooldown: don't return to a vendor more often than the
+    // configured window. This is set when the vendor is reached.
+    if (botAI->nextVendorVisitTime != 0 && time(nullptr) < botAI->nextVendorVisitTime)
+        return false;
+
+    if (bot->GetLevel() < (uint32)sPlayerbotAIConfig.vendorVisitMinLevel)
+        return false;
+
+    // Must have a reachable vendor on this map.
+    TravelMgr::NpcLocation vendor;
+    if (!sTravelMgr.SelectVendorByMap(bot, vendor))
+        return false;
+
+    // Bag pressure.
+    if (sPlayerbotAIConfig.vendorVisitMinBagFillPercent > 0)
+    {
+        uint8 bagFill = AI_VALUE(uint8, "bag space");
+        if (bagFill >= sPlayerbotAIConfig.vendorVisitMinBagFillPercent)
+            return true;
+    }
+
+    // Vendorable items in bags. This is the primary driver: it is how old
+    // soulbound gear and cheap loot gets sold instead of sitting until the
+    // next randomize destroys it.
+    uint32 const sellableCount =
+        AI_VALUE2(uint32, "item count", "usage " + std::to_string(ITEM_USAGE_VENDOR));
+    if (sellableCount > 0)
+        return true;
+
+    // Disenchantable items in bags, for bots with Enchanting.
+    if (botAI->HasSkill(SKILL_ENCHANTING))
+    {
+        uint32 const disenchantCount =
+            AI_VALUE2(uint32, "item count", "usage " + std::to_string(ITEM_USAGE_DISENCHANT));
+        if (disenchantCount > 0)
+            return true;
+    }
+
+    return false;
+}
+
 bool NewRpgBaseAction::SelectRandomFlightTaxiNode(uint32& flightMasterEntry, WorldPosition& flightMasterPos, std::vector<uint32>& path)
 {
     TravelMgr::FlightMasterInfo const* info = sTravelMgr.GetNearestFlightMasterInfo(bot);
@@ -1218,6 +1275,22 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
             if (pos != WorldPosition())
             {
                 botAI->rpgInfo.ChangeToGoCamp(pos);
+                return true;
+            }
+            return false;
+        }
+        // Add Vendor
+        case RPG_GO_VENDOR:
+        {
+            TravelMgr::NpcLocation vendor;
+            if (sTravelMgr.SelectVendorByMap(bot, vendor))
+            {
+                WorldPosition pos(vendor.loc.GetMapId(),
+                                  vendor.loc.GetPositionX(),
+                                  vendor.loc.GetPositionY(),
+                                  vendor.loc.GetPositionZ());
+
+                botAI->rpgInfo.ChangeToGoVendor(pos, vendor.entry);
                 return true;
             }
             return false;
@@ -1366,6 +1439,11 @@ bool NewRpgBaseAction::CheckRpgStatusAvailable(NewRpgStatus status)
         case RPG_GO_AUCTIONEER:
         {
             return ShouldVisitAuctioneer();
+        }
+        // Add Vendor
+        case RPG_GO_VENDOR:
+        {
+            return ShouldVisitVendor();
         }
         case RPG_WANDER_NPC:
         {

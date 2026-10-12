@@ -80,6 +80,27 @@ struct NewRpgInfo
         // is bypassed so the walk can actually complete.
         uint8 mailboxWalkState{0};
     };
+    // RPG_GO_VENDOR
+    struct GoVendor
+    {
+        WorldPosition pos{};
+        uint32 vendorEntry{0};
+        uint32 lastReach{0};
+        // One-shot flag: the vendor-sell pass has been run for this visit.
+        // The sell pass is idempotent (SellVendorItemsVisitor iterates bags
+        // and sells everything classified VENDOR), so it only needs to run
+        // once per visit.
+        bool vendorSellDone{false};
+        // Disenchant pass. Each tick the action tries to start one disenchant
+        // cast while the bot is not already casting. A successful start
+        // increments disenchantSuccesses; two consecutive failures (nothing
+        // left in the DISENCHANT bucket) or a hit on the safety cap end the
+        // pass. The status update completes the visit once the sell pass has
+        // run AND the disenchant pass has ended.
+        uint32 disenchantAttempts{0};
+        uint32 disenchantSuccesses{0};
+        bool disenchantDone{false};
+    };
     // RPG_WANDER_NPC
     struct WanderNpc
     {
@@ -147,6 +168,8 @@ struct NewRpgInfo
         GoCamp,
         //Add Auctioneer
         GoAuctioneer,
+        //Add Vendor
+        GoVendor,
         WanderNpc,
         WanderRandom,
         DoQuest,
@@ -168,6 +191,8 @@ struct NewRpgInfo
                               uint32 buyAuctionId = 0,
                               uint32 buyPrice = 0,
                               uint32 buyMaxWilling = 0);
+    // Add Vendor
+    void ChangeToGoVendor(WorldPosition pos, uint32 vendorEntry);
     void ChangeToWanderNpc();
     void ChangeToWanderRandom();
     void ChangeToDoQuest(uint32 questId, Quest const* quest);

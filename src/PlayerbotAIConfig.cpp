@@ -965,12 +965,28 @@ bool PlayerbotAIConfig::Initialize()
     RpgStatusProbWeight[RPG_GO_AUCTIONEER] =
         sConfigMgr->GetOption<int32>("Playerbots.RpgStatusProbWeight.GoAuctioneer", 3);
 
+    // Add Vendor
+    RpgStatusProbWeight[RPG_GO_VENDOR] =
+        sConfigMgr->GetOption<int32>("Playerbots.RpgStatusProbWeight.GoVendor", 10);
+
     auctionVisitMinLevel =
         sConfigMgr->GetOption<int32>("Playerbots.AuctionVisit.MinLevel", 10);
     auctionVisitMinBagFillPercent =
         sConfigMgr->GetOption<int32>("Playerbots.AuctionVisit.MinBagFillPercent", 85);
     auctionVisitMinGoldCopper =
         sConfigMgr->GetOption<int32>("Playerbots.AuctionVisit.MinGoldCopper", 10000);
+
+    // Add Vendor
+    vendorVisitMinLevel =
+        sConfigMgr->GetOption<int32>("Playerbots.VendorVisit.MinLevel", 5);
+    vendorVisitMinBagFillPercent =
+        sConfigMgr->GetOption<int32>("Playerbots.VendorVisit.MinBagFillPercent", 60);
+    vendorVisitMinMinutes =
+        sConfigMgr->GetOption<uint32>("Playerbots.VendorVisit.MinMinutes", 20);
+    vendorVisitMaxMinutes =
+        sConfigMgr->GetOption<uint32>("Playerbots.VendorVisit.MaxMinutes", 90);
+    if (vendorVisitMaxMinutes < vendorVisitMinMinutes)
+        vendorVisitMaxMinutes = vendorVisitMinMinutes;
 
     SyncLevelWithPlayers = sConfigMgr->GetOption<bool>("Playerbots.SyncLevelWithPlayers", false);
     RandomBotConcentrateInPlayerZone =
