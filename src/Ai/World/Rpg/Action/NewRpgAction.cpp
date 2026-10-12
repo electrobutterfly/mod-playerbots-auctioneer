@@ -314,13 +314,14 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             assert(data.pos != WorldPosition());
 
             // Wait for the action to finish: HELLO sent (lastReach set),
-            // mail pass done, sell queue drained, buy task attempted, and
-            // the tracked-bid pass done.
+            // mail pass done, sell queue built and drained, buy task
+            // attempted, and the tracked-bid pass done.
             bool const sellComplete = data.pendingSells.empty();
             bool const buyComplete  = data.buyAuctionId == 0 || data.buyDone;
             bool const bidsComplete = data.trackedBidsDone;
             bool const mailComplete = data.mailChecked;
-            if (data.lastReach && sellComplete && buyComplete && bidsComplete && mailComplete)
+            bool const queueComplete = data.sellQueueBuilt;
+            if (data.lastReach && queueComplete && sellComplete && buyComplete && bidsComplete && mailComplete)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -506,41 +507,10 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                                 data->returnedEntries.push_back(entry);
                         }
 
-                        std::vector<ObjectGuid> relistSells;
-                        for (Item* it : botAI->GetInventoryItems())
-                        {
-                            if (relistSells.size() >=
-                                sPlayerbotAIConfig.auctionMaxSellsPerVisit)
-                                break;
-                            if (!it || !it->CanBeTraded())
-                                continue;
-                            if (std::find(relistable.begin(), relistable.end(),
-                                          it->GetEntry()) == relistable.end())
-                                continue;
-
-                            ItemTemplate const* p = it->GetTemplate();
-                            if (!p)
-                                continue;
-                            if (sPlayerbotAIConfig.IsAuctionExcludedItem(p->ItemId))
-                                continue;
-                            if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
-                                p->Class != ITEM_CLASS_TRADE_GOODS &&
-                                p->Class != ITEM_CLASS_RECIPE &&
-                                p->Class != ITEM_CLASS_CONSUMABLE &&
-                                sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId))
-                                continue;
-
-                            relistSells.push_back(it->GetGUID());
-                        }
-
-                        data->pendingSells.insert(data->pendingSells.begin(),
-                                                  relistSells.begin(),
-                                                  relistSells.end());
-
                         if (debugAuction)
                             LOG_ERROR("playerbots",
-                                      "[AH-TRACE] {} relist: collected {} items, queued {} for relist",
-                                      bot->GetName(), collected.size(), relistSells.size());
+                                      "[AH-TRACE] {} relist: collected {} items, queue deferred to AH arrival",
+                                      bot->GetName(), collected.size());
                     }
                 }
 
@@ -841,63 +811,121 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                             }
                         }
 
-                        // Queue up to MaxSellsPerVisit returned items. These
-                        // go to the front of pendingSells so they list first.
-                        // Apply the same vendor-junk filter the fresh-listing
-                        // path uses. Without it, a bot that listed a tool
-                        // before this filter existed would relist it forever
-                        // through the mail return loop.
-                        std::vector<ObjectGuid> relistSells;
-                        for (Item* it : botAI->GetInventoryItems())
-                        {
-                            if (relistSells.size() >= sPlayerbotAIConfig.auctionMaxSellsPerVisit)
-                                break;
-                            if (!it || !it->CanBeTraded())
-                                continue;
-                            if (std::find(relistable.begin(), relistable.end(), it->GetEntry()) == relistable.end())
-                                continue;
-
-                            ItemTemplate const* p = it->GetTemplate();
-                            if (!p)
-                                continue;
-
-                            if (sPlayerbotAIConfig.IsAuctionExcludedItem(p->ItemId))
-                            {
-                                if (debugAuction)
-                                {
-                                    LOG_ERROR("playerbots",
-                                              "[AH-TRACE] {} relist: skipping excluded [{}] {}",
-                                              bot->GetName(), p->ItemId, p->Name1);
-                                }
-                                continue;
-                            }
-
-                            if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
-                                p->Class != ITEM_CLASS_TRADE_GOODS &&
-                                p->Class != ITEM_CLASS_RECIPE &&
-                                p->Class != ITEM_CLASS_CONSUMABLE &&
-                                sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId))
-                            {
-                                if (debugAuction)
-                                {
-                                    LOG_ERROR("playerbots",
-                                              "[AH-TRACE] {} relist: skipping vendor-sold [{}] {}",
-                                              bot->GetName(), p->ItemId, p->Name1);
-                                }
-                                continue;
-                            }
-
-                            relistSells.push_back(it->GetGUID());
-                        }
-
-                        data->pendingSells.insert(data->pendingSells.begin(),
-                                                  relistSells.begin(),
-                                                  relistSells.end());
+                        // Queue building is deferred to the sellQueueBuilt
+                        // step below, which runs after this mail pass and
+                        // scans the bot's current bag contents. Returned
+                        // items and fresh items are queued by the same code
+                        // path and the queue is not stale by the time the
+                        // sell step runs.
                     }
                 }
             }
         }
-                else if (!data->trackedBidsDone)
+                else if (!data->sellQueueBuilt)
+        {
+            // Build the sell queue now, at AH arrival time, from the bot's
+            // current bag contents plus any items just collected from
+            // returned mail. This replaces the old pre-visit scan that used
+            // to run in RandomChangeStatus; the queue was built minutes
+            // before arrival and went stale if the bot looted, fought or
+            // traded in between. Returned items are queued first so they use
+            // the relist undercut band; fresh items fill the rest of the
+            // queue up to MaxSellsPerVisit.
+            data->sellQueueBuilt = true;
+
+            uint32 const maxSells = sPlayerbotAIConfig.auctionMaxSellsPerVisit;
+            uint32 const listingsCap = sPlayerbotAIConfig.auctionMaxActiveListingsPerBot;
+            bool const canSell =
+                sPlayerbotAIConfig.auctionEnableSelling &&
+                maxSells > 0 &&
+                PlayerbotAuction::CountActiveListings(bot) < listingsCap;
+
+            if (canSell)
+            {
+                // Returned-auction items first.
+                for (uint32 entry : data->returnedEntries)
+                {
+                    if (data->pendingSells.size() >= maxSells)
+                        break;
+
+                    Item* it = PlayerbotAuction::FindTradeableItemInBags(botAI, entry);
+                    if (!it)
+                        continue;
+
+                    ItemTemplate const* p = it->GetTemplate();
+                    if (!p)
+                        continue;
+
+                    if (sPlayerbotAIConfig.IsAuctionExcludedItem(p->ItemId))
+                        continue;
+                    if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
+                        p->Class != ITEM_CLASS_TRADE_GOODS &&
+                        p->Class != ITEM_CLASS_RECIPE &&
+                        p->Class != ITEM_CLASS_CONSUMABLE &&
+                        sPlayerbotAIConfig.IsVendorSoldItem(p->ItemId))
+                        continue;
+
+                    ObjectGuid const guid = it->GetGUID();
+                    if (std::find(data->pendingSells.begin(),
+                                  data->pendingSells.end(), guid) != data->pendingSells.end())
+                        continue;
+
+                    data->pendingSells.push_back(guid);
+                }
+
+                // Fresh items. FindItemToSell picks at random from the
+                // top-N most valuable candidates, so a loop with GUID
+                // de-duplication gets us several distinct stacks without
+                // repeating one. A small duplicate-streak cap avoids
+                // spinning forever when the candidate pool is smaller
+                // than the requested batch.
+                uint32 duplicateStreak = 0;
+                while (data->pendingSells.size() < maxSells && duplicateStreak < 3)
+                {
+                    PlayerbotAuction::SellCandidate sellCand =
+                        PlayerbotAuction::FindItemToSell(botAI);
+                    if (!sellCand.item)
+                        break;
+
+                    ObjectGuid const guid = sellCand.item->GetGUID();
+                    if (std::find(data->pendingSells.begin(),
+                                  data->pendingSells.end(), guid) != data->pendingSells.end())
+                    {
+                        ++duplicateStreak;
+                        continue;
+                    }
+                    duplicateStreak = 0;
+
+                    // A fresh listing drawn from bags means the bot is not
+                    // churning the same expired item. Reset the relist retry
+                    // counter for this entry so it starts a new cycle.
+                    if (sRandomPlayerbotMgr.IsRandomBot(bot))
+                    {
+                        std::string const key = "auction.relist." +
+                            std::to_string(sellCand.item->GetEntry());
+                        sRandomPlayerbotMgr.SetValue(bot->GetGUID().GetCounter(),
+                                                      key, 0);
+                    }
+
+                    data->pendingSells.push_back(guid);
+                }
+            }
+
+            if (sPlayerbotAIConfig.debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} sell queue built: {} items ({} returned, {} fresh)",
+                          bot->GetName(),
+                          data->pendingSells.size(),
+                          data->returnedEntries.size(),
+                          data->pendingSells.size() > data->returnedEntries.size()
+                              ? data->pendingSells.size() - data->returnedEntries.size()
+                              : 0);
+            }
+
+            return false;
+        }
+        else if (!data->trackedBidsDone)
         {
             // HELLO sent. Re-evaluate every in-progress bid before rebidding:
             //   * auction still exists in the AH

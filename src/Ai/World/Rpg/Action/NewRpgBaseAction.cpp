@@ -1233,46 +1233,13 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                                   auctioneer.loc.GetPositionY(),
                                   auctioneer.loc.GetPositionZ());
 
-                // Queue up to MaxSellsPerVisit fresh items for this visit.
-                // FindItemToSell picks at random from the top-N most valuable
-                // candidates, so a loop with GUID de-duplication gets us
-                // several distinct stacks without repeating one. Gated on the
-                // per-bot live-auction cap: 0 disables selling entirely,
-                // otherwise the bot must be under its configured cap. Bots at
-                // cap can still buy.
-                std::vector<ObjectGuid> initialSells;
-                if (sPlayerbotAIConfig.auctionEnableSelling &&
-                    PlayerbotAuction::CountActiveListings(bot) <
-                        sPlayerbotAIConfig.auctionMaxActiveListingsPerBot)
-                {
-                    for (uint32 attempt = 0;
-                         attempt < sPlayerbotAIConfig.auctionMaxSellsPerVisit;
-                         ++attempt)
-                    {
-                        PlayerbotAuction::SellCandidate sellCand =
-                            PlayerbotAuction::FindItemToSell(botAI);
-                        if (!sellCand.item)
-                            break;
-
-                        ObjectGuid const guid = sellCand.item->GetGUID();
-                        if (std::find(initialSells.begin(), initialSells.end(),
-                                      guid) != initialSells.end())
-                            break;  // pool exhausted or unlucky roll; stop
-
-                        // A fresh listing drawn from bags means the bot is not
-                        // churning the same expired item. Reset the relist
-                        // retry counter for this entry so it starts a new cycle.
-                        if (sRandomPlayerbotMgr.IsRandomBot(bot))
-                        {
-                            std::string const key = "auction.relist." +
-                                std::to_string(sellCand.item->GetEntry());
-                            sRandomPlayerbotMgr.SetValue(bot->GetGUID().GetCounter(),
-                                                          key, 0);
-                        }
-
-                        initialSells.push_back(guid);
-                    }
-                }
+                // Remove the pre-scan
+                // The sell queue is built at AH arrival time, not here.
+                // See the sellQueueBuilt step in
+                // NewRpgGoAuctioneerAction::Execute. Building it here would
+                // mean the queue reflects bag contents from minutes before
+                // the bot actually reaches the auctioneer, and returned mail
+                // items would need a separate injection path.
 
                 // Buy candidate — expensive (scans all AH listings). Gate behind
                 // a probability so we don't hammer the manager every tick.
@@ -1294,20 +1261,11 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                     buyMaxWilling = buyCand.maxWillingPrice;
                 }
 
-                // Also trigger a visit if we have tracked bids to check on,
-                // even when nothing new to sell or buy was found.
-                bool const hasTrackedBids = !botAI->trackedAuctions.empty();
-
-                if (initialSells.empty() && buyAuctionId == 0 && !hasTrackedBids)
-                {
-                    botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry);
-                }
-                else
-                {
-                    botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry,
-                                                        initialSells,
-                                                        buyAuctionId, buyPrice, buyMaxWilling);
-                }
+                // Pass an empty sell queue; the action fills it in at
+                // arrival after mail has been collected.
+                botAI->rpgInfo.ChangeToGoAuctioneer(pos, auctioneer.entry,
+                                                    {},
+                                                    buyAuctionId, buyPrice, buyMaxWilling);
                 return true;
             }
             return false;

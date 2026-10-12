@@ -42,9 +42,17 @@ struct NewRpgInfo
         uint32 lastReach{0};
         // Get MAIL AUCTION returned mail
         bool mailChecked{false};
-        // FIFO queue of items to sell this visit, in order. Returned-auction
-        // items are prepended by the mail step; the normal single sell pick
-        // (if any) sits at the back.
+        // Sell-queue build flag. Set to true once the queue has been built
+        // from the bot's current bag contents at AH arrival time. This is
+        // what keeps the queue fresh: it used to be built at status-selection
+        // time, but the bot may loot, fight or trade in between, so the
+        // pre-built queue was frequently stale and returned mail items had
+        // to be injected through a separate prepend path.
+        bool sellQueueBuilt{false};
+        // FIFO queue of items to sell this visit, in order. Populated at AH
+        // arrival time (see sellQueueBuilt). Returned-auction items -- those
+        // whose entry ID appears in returnedEntries -- sit at the front so
+        // they use the relist undercut band.
         std::vector<ObjectGuid> pendingSells;
         // Entries that came from returned auction mail. Any item whose entry
         // is in this list uses the relist undercut range.

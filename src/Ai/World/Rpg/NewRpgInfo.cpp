@@ -33,6 +33,7 @@ void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
     data_go.auctioneerEntry = auctioneerEntry;
     data_go.lastReach = 0;
     data_go.mailChecked = false;
+    data_go.sellQueueBuilt = false;
     data_go.pendingSells = pendingSells;
     data_go.returnedEntries.clear();
     data_go.buyAuctionId = buyAuctionId;
