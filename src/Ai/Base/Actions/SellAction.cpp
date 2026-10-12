@@ -163,6 +163,20 @@ void SellAction::Sell(Item* item)
 {
     std::ostringstream out;
 
+    if (sPlayerbotAIConfig.debugAuction && item)
+    {
+        ItemTemplate const* proto = item->GetTemplate();
+        LOG_ERROR("playerbots",
+                  "[AH-TRACE] {} vendoring [{}] {} x{} quality={} usage={}",
+                  bot->GetName(),
+                  proto ? proto->ItemId : 0,
+                  proto ? proto->Name1 : "<unknown>",
+                  item->GetCount(),
+                  proto ? uint32(proto->Quality) : 0,
+                  uint32(AI_VALUE2(ItemUsage, "item usage",
+                                   proto ? proto->ItemId : 0)));
+    }
+
     GuidVector vendors = botAI->GetAiObjectContext()->GetValue<GuidVector>("nearest npcs")->Get();
 
     for (ObjectGuid const vendorguid : vendors)
