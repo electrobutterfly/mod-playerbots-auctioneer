@@ -1209,7 +1209,27 @@ bool NewRpgGoVendorAction::Execute(Event /*event*/)
             return MoveRandomNear(10.0f);
         }
 
-        Creature* vendor = bot->FindNearestCreature(data->vendorEntry, INTERACTION_DISTANCE * 3);
+        Creature* vendor = bot->FindNearestCreature(data->vendorEntry, INTERACTION_DISTANCE * 6);
+        if (!vendor)
+        {
+            // The cached vendor entry may not be visible from where the bot
+            // stopped -- interiors, staircases, and different floors of the
+            // same building are common cases. Fall back to any vendor within
+            // interaction range: the exact entry is a preference, not a
+            // requirement, and the sell pass works with any vendor.
+            GuidVector const& npcs =
+                botAI->GetAiObjectContext()->GetValue<GuidVector>("nearest npcs")->Get();
+            for (ObjectGuid const& guid : npcs)
+            {
+                Creature* c = botAI->GetCreature(guid);
+                if (!c || !c->HasNpcFlag(UNIT_NPC_FLAG_VENDOR))
+                    continue;
+                if (bot->GetDistance(c) > INTERACTION_DISTANCE)
+                    continue;
+                vendor = c;
+                break;
+            }
+        }
         if (!vendor)
         {
             LOG_DEBUG("playerbots",
