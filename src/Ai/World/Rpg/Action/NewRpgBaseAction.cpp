@@ -1233,24 +1233,44 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                                   auctioneer.loc.GetPositionY(),
                                   auctioneer.loc.GetPositionZ());
 
-                // Sell candidate. Gated on the per-bot live auction cap:
-                // 0 disables selling entirely, otherwise the bot must be
-                // under its configured cap. Bots at cap can still buy.
-                PlayerbotAuction::SellCandidate sellCand;
+                // Queue up to MaxSellsPerVisit fresh items for this visit.
+                // FindItemToSell picks at random from the top-N most valuable
+                // candidates, so a loop with GUID de-duplication gets us
+                // several distinct stacks without repeating one. Gated on the
+                // per-bot live-auction cap: 0 disables selling entirely,
+                // otherwise the bot must be under its configured cap. Bots at
+                // cap can still buy.
+                std::vector<ObjectGuid> initialSells;
                 if (sPlayerbotAIConfig.auctionEnableSelling &&
                     PlayerbotAuction::CountActiveListings(bot) <
                         sPlayerbotAIConfig.auctionMaxActiveListingsPerBot)
                 {
-                    sellCand = PlayerbotAuction::FindItemToSell(botAI);
-
-                    // A fresh listing drawn from bags means the bot is not
-                    // churning the same expired item. Reset the relist retry
-                    // counter for this entry so it starts a new cycle.
-                    if (sellCand.item && sRandomPlayerbotMgr.IsRandomBot(bot))
+                    for (uint32 attempt = 0;
+                         attempt < sPlayerbotAIConfig.auctionMaxSellsPerVisit;
+                         ++attempt)
                     {
-                        std::string const key =
-                            "auction.relist." + std::to_string(sellCand.item->GetEntry());
-                        sRandomPlayerbotMgr.SetValue(bot->GetGUID().GetCounter(), key, 0);
+                        PlayerbotAuction::SellCandidate sellCand =
+                            PlayerbotAuction::FindItemToSell(botAI);
+                        if (!sellCand.item)
+                            break;
+
+                        ObjectGuid const guid = sellCand.item->GetGUID();
+                        if (std::find(initialSells.begin(), initialSells.end(),
+                                      guid) != initialSells.end())
+                            break;  // pool exhausted or unlucky roll; stop
+
+                        // A fresh listing drawn from bags means the bot is not
+                        // churning the same expired item. Reset the relist
+                        // retry counter for this entry so it starts a new cycle.
+                        if (sRandomPlayerbotMgr.IsRandomBot(bot))
+                        {
+                            std::string const key = "auction.relist." +
+                                std::to_string(sellCand.item->GetEntry());
+                            sRandomPlayerbotMgr.SetValue(bot->GetGUID().GetCounter(),
+                                                          key, 0);
+                        }
+
+                        initialSells.push_back(guid);
                     }
                 }
 
@@ -1263,10 +1283,6 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
                 {
                     buyCand = PlayerbotAuction::FindAuctionToBuy(botAI);
                 }
-
-                                std::vector<ObjectGuid> initialSells;
-                if (sellCand.item)
-                    initialSells.push_back(sellCand.item->GetGUID());
 
                 uint32 buyAuctionId = 0;
                 uint32 buyPrice     = 0;
