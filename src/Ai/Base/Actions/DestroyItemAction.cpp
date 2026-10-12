@@ -49,6 +49,20 @@ void DestroyItemAction::DestroyItem(FindItemVisitor* visitor)
     std::vector<Item*> items = visitor->GetResult();
     for (Item* item : items)
     {
+        if (sPlayerbotAIConfig.debugAuction)
+        {
+            ItemTemplate const* proto = item->GetTemplate();
+            LOG_ERROR("playerbots",
+                      "[AH-TRACE] {} destroyed [{}] {} x{} quality={} usage={}",
+                      bot->GetName(),
+                      proto ? proto->ItemId : 0,
+                      proto ? proto->Name1 : "<unknown>",
+                      item->GetCount(),
+                      proto ? uint32(proto->Quality) : 0,
+                      uint32(AI_VALUE2(ItemUsage, "item usage",
+                                       proto ? proto->ItemId : 0)));
+        }
+
         std::ostringstream out;
         out << chat->FormatItem(item->GetTemplate()) << " destroyed";
         botAI->TellMaster(out);
@@ -56,6 +70,7 @@ void DestroyItemAction::DestroyItem(FindItemVisitor* visitor)
         bot->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
     }
 }
+
 
 bool SmartDestroyItemAction::isUseful() { return !IsRealPlayer(botAI->GetMaster()); }
 
