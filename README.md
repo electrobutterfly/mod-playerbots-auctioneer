@@ -1,26 +1,32 @@
 <p align="center">
-    <a href="https://github.com/mod-playerbots/azerothcore-wotlk">Playerbots-Auctioneer</a>
+    <a href="https://github.com/electrobutterfly/azerothcore-wotlk-playerbots">Azerothcore-Playerbots</a>
     |
     <a href="https://github.com/NathanHandley/mod-ah-bot-plus">AH Bot Plus</a>
     |
-    <a href="https://github.com/mod-playerbots/azerothcore-wotlk">Azerothcore-Playerbots</a>
+    <a href="https://github.com/electrobutterfly/mod-playerbots-auctioneer">Playerbots-Auctioneer</a>
 </p>
 <div align="center">
   <img src="banner.jpg" alt="Playerbots Banner" width="700px">
 </div>
 
-
 # Playerbots-Auctioneer
 
-`Playerbots-Auctioneer` is a heavily modified [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) fork which provides an auction-house subsystem for AzerothCore.
+`Playerbots-Auctioneer` is a heavily modified [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) fork which provides an auction-house and vendor economy for the bot population.
 
-Out of the box, mod-playerbots bots do not touch the Auction House. They do not buy, they do not sell, they do not bid, they do not walk to an auctioneer, they do not collect mail. On a playerbot-only server the AH is populated by whatever the server operator places there by hand, or by mod-ah-bot-plus if it is enabled — it is not an economy driven by the bot population.
+Out of the box, mod-playerbots bots do not interact with the Auction House or with vendors. They do not buy, they do not sell, they do not bid, they do not walk to an auctioneer, they do not collect mail, and they do not dispose of soulbound gear. On a bot-only server the AH is populated by whatever the server operator places there by hand, or by mod-ah-bot-plus if it is enabled — it is not an economy driven by the bot population.
 
-`Playerbots-Auctioneer` gives the bot population a complete auction-house economy of its own. Every bot walks to the AH, sells his by his professions crafted stuff and surplus inventory, buys items it needs, bids on and defends listings it wants, collects expired mail, and relists returned items — the same lifecycle a human player follows. The economy runs **autonomously**: no human players are required for the AH to fill up, and the buyer and seller features of mod-ah-bot-plus do not need to be enabled for the bots to trade with each other.
+`Playerbots-Auctioneer` gives the bot population a complete economy of its own:
+
+- **Auction house.** Every bot walks to the AH, sells its by-profession crafted goods and surplus inventory, buys items it needs, bids on and defends listings it wants, collects expired mail, and relists returned items — the same lifecycle a human player follows.
+- **Vendors.** Every bot periodically walks to a vendor and sells whatever the auction house won't take: soulbound gear, cheap loot, materials below the listing floor. Bots with Enchanting also disenchant soulbound gear before leaving.
+
+The economy runs **autonomously**: no human players are required for the AH to fill up, and the buyer and seller features of mod-ah-bot-plus do not need to be enabled for the bots to trade with each other.
 
 ---
 
 ## Features
+
+### Auction house
 
 - **Automated selling.** Bots decide which inventory items are worth listing, price them against the live market and (optionally) a reference market, undercut competing listings by a bounded percentage, and list them for a configurable duration.
 - **Automated buying.** On a configurable per-cycle chance, bots scan the AH for gear upgrades, larger bags, consumables, profession materials, and quest items they need, and buy or bid up to a willingness threshold.
@@ -28,44 +34,74 @@ Out of the box, mod-playerbots bots do not touch the Auction House. They do not 
 - **Mail collection.** Bots walk to a mailbox when they have returned auction mail, collect the items, and relist them — up to a per-item retry cap, after which the item falls through to the normal vendor or destroy path.
 - **Reference pricing.** A per-item price band (`price_low` / `price_median` / `price_high`) sourced from a live market. Because a bot-only economy has no outside liquidity, without a reference the bots race each other to the vendor floor within days. The reference band seeds prices on an empty market, floors undercutting so prices cannot walk into the ground, and caps how many concurrent listings of the same item can exist.
 - **Starting-bid ratios.** The observed MINBID/BUYOUT ratio from the reference market, used to set a realistic starting bid instead of always halving the buyout.
-- **Craft arbitrage.** When a bot knows a recipe whose output is worth more than its reagent cost at reference prices, the reagents are reserved instead of being dumped at material price.
+- **Craft arbitrage.** When a bot knows a recipe whose output is worth more than its reagent cost at reference prices, the reagents are reserved instead of being dumped at material price. **Off by default** — see the note under *Recommended defaults* below.
 - **Multi-snapshot trend.** Prices nudge up or down within the reference band based on how the reference market has moved over a retention window (default 90 days).
+
+### Vendors
+
+- **Surplus disposal.** Every bot periodically visits the nearest vendor on its current map and sells anything classified as vendor trash: soulbound gear it has replaced, cheap materials below the AH listing floor, and loot the AH will not take.
+- **Disenchanting.** Bots with Enchanting disenchant soulbound gear before leaving the vendor, keeping the enchanting materials.
+- **Bag hygiene.** Because gear and cheap loot exit through the vendor instead of accumulating in bags, bots rarely hit the destroy-under-bag-pressure threshold. This is what keeps the destroy path a genuine safety net rather than a hidden primary disposal.
+
+### Master switches
+
 - **Fully optional.** With the reference tables empty or missing, the auctioneer falls back to legacy pricing with no error spam and no crash. The two modes are selected by a single config key.
+- **GM-only commands.** The `ah bid`, `ah sell`, `ah buypick`, and `ah sellpick` chat commands are restricted to Game Master accounts. Non-GM attempts are rejected and logged.
 
 ### Relationship with mod-ah-bot-plus
 
 mod-ah-bot-plus is installed as a dependency because the auctioneer's buyer and seller logic is benchmarked against the same `CalculateItemValue` implementation that mod uses. But the AH bot's own buyer and seller features can be independently enabled or disabled — the playerbots-auctioneer provides the buyer and seller behavior for the bot population itself, and works with those features off.
 
-The AH bot GUIDs from mod-ah-bot-plus are used only to classify sellers for the buyer-preference logic (`AiPlayerbot.Auction.AhBotGUIDs`), so the bots know the difference between "another playerbot" and "the dedicated AH bot". If you are not running mod-ah-bot-plus, leave that config key empty and the classification falls back to `Unknown`.
-
-
+The AH bot GUIDs from mod-ah-bot-plus are used only to classify sellers for the buyer-preference logic (`Playerbots.Auction.AhBotGUIDs`), so the bots know the difference between "another playerbot" and "the dedicated AH bot". If you are not running mod-ah-bot-plus, leave that config key empty and the classification falls back to `Unknown`.
 
 ### Bots sometimes seem to "fly or go through wall"
 
-That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)
-
-
+That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots).
 
 ---
 
 ## Installation
+
+
+
+> [!WARNING]
+>
+> ## ⚠ COMPATIBILITY WARNING ⚠
+>
+> **You MUST clone the AzerothCore fork linked below. Do NOT clone the upstream
+> `mod-playerbots/azerothcore-wotlk` repository.**
+>
+> This module is a heavily modified fork of `mod-playerbots`, and it depends on
+> specific commits that only exist in the fork below. The upstream
+> `mod-playerbots` repository is updated on its own schedule and is frequently
+> out of sync with this module's expectations. **If you clone upstream and then
+> clone this module into `modules/`, the module will not compile** — the
+> interfaces it depends on (`PlayerbotAIConfig`, `NewRpgInfo`, `TravelMgr`,
+> `ItemUsageValue`, and others) diverge between the two repos.
+>
+> The fork below tracks `mod-playerbots` and is updated alongside this module,
+> so it always contains the exact commit the module expects.
+
+
 
 ### 1. AzerothCore Playerbots
 
 Clone the AzerothCore playerbots fork:
 
 ```bash
-git clone https://github.com/mod-playerbots/azerothcore-wotlk.git --branch=Playerbot
+git clone https://github.com/electrobutterfly/azerothcore-wotlk-playerbots.git
 ```
+
+
 
 ### 2. Modules
 
 The auctioneer depends on the mod-ah-bot-plus module. Install both inside the `modules/` directory:
 
 ```bash
-cd azerothcore-wotlk/modules
+cd azerothcore-wotlk-playerbots/modules
 
-# Playerbots-Auctioneer — the auction-house subsystem (this module)
+# Playerbots-Auctioneer — the auction-house and vendor subsystem (this module)
 git clone https://github.com/electrobutterfly/mod-playerbots-auctioneer.git
 
 # AH Bot Plus — the auction-house bot mod the auctioneer is benchmarked
@@ -75,6 +111,8 @@ cd mod-ah-bot-plus
 git checkout f685832994c825f90aa5a3dc0e1620aa568e875b
 cd ..
 ```
+
+
 
 ### 3. Build and install
 
@@ -92,16 +130,18 @@ $EDITOR playerbots_auction.conf
 
 
 
-The two settings you should change:
+The two settings you **must** change to enable the feature:
 
 ```bash
-AiPlayerbot.Auction.Enabled = 1
-AiPlayerbot.Auction.Baseline.Mode = 2
+Playerbots.Auction.Enabled = 1
+Playerbots.Auction.Baseline.Mode = 2
 ```
 
-`Auction.Enabled` is the master switch. `Baseline.Mode = 2` tells the bots to consult the reference table rather than falling back to legacy pricing. Both are safe to change at any time; `.reload config` applies them without a restart.
 
-The full file is documented inline. Every setting has a comment describing what it does, what values it accepts, and what the default means.
+
+`Auction.Enabled` is the master switch for both the AH and vendor subsystems. `Baseline.Mode = 2` tells the bots to consult the reference table rather than falling back to legacy pricing. Both are safe to change at any time; `.reload config` applies them without a restart.
+
+The full file is documented inline. Every setting has a comment describing what it does, what values it accepts, and what the default means. See the *Recommended defaults* section below for the settings a fresh install should consider changing after the first day of operation.
 
 ### 5. Configure the baseline tool
 
@@ -201,9 +241,35 @@ If (1) shows zero rows, run `python3 auctioneer.py run` once by hand and recheck
 
 If (2) shows nothing, the config has `Baseline.Mode = 1`. Set it to `2` and reload.
 
-If (3) shows nothing, either `DebugAuction` is off (see next section) or the bots are not choosing AH visits — check `RpgStatusProbWeight.GoAuctioneer` and the visit gates in the config.
+If (3) shows nothing, either `DebugAuction` is off (see *Troubleshooting*) or the bots are not choosing AH visits — check `RpgStatusProbWeight.GoAuctioneer` and the visit gates in the config.
 
+------
 
+## 9. Troubleshooting
+
+See [TROUBLESHOOTING.md](https://troubleshooting.md/) for the diagnostic mode, log formats, grep recipes, and the diagnostic bundle to attach to bug reports.
+
+------
+
+## Recommended defaults
+
+The shipped defaults are chosen so that a fresh install works out of the box. The list below is what is recommended you **change** after the first 24 hours of operation, once you have seen how your server behaves:
+
+| Setting                                  | Default | Recommended after first 24h                             | Why                                                          |
+| :--------------------------------------- | :------ | :------------------------------------------------------ | :----------------------------------------------------------- |
+| `Auction.Baseline.CraftArbitrageEnabled` | 0       | leave at 0 unless you have tested it                    | When enabled, a bot that knows a profitable recipe will hold its reagents back from the AH. If the margin threshold is wrong for your server, reagents accumulate in bags and never get listed. Off by default. |
+| `Auction.MaxSellsPerVisit`               | 5       | raise to 10 on a small server, leave at 5 on a busy one | Governs how many fresh items a bot lists in a single AH visit. Higher = faster AH fill, more burst load. |
+| `Auction.BuyScanChancePercent`           | 10      | raise to 25 if you want more buying                     | Each buy scan iterates every AH listing. This is the single most expensive operation in the subsystem. |
+| `Auction.MaxSpendPercentPerVisit`        | 25      | raise to 50 if bots seem cash-rich                      | Caps how much of a bot's gold goes into one visit. 25% keeps bots solvent. |
+| `Auction.MinSellValueCopper`             | 25      | raise to 100 if the AH fills with junk                  | 25c lets mid-tier materials and cheap greens reach the AH. 100c filters them out. |
+| `Auction.MaxRelistRetries`               | 3       | leave at 3                                              | How many times a bot relists the same returned item before giving up. |
+| `Auction.Baseline.ReloadCheckMinutes`    | 60      | raise to 240 if you run the parser weekly               | Frequency the worldserver polls for a new baseline snapshot. Cheap; a minute is fine on any server. |
+
+**Do not raise `Auction.MinSellQuality` above 1.** Herbs, ore, leather, cloth and most trade goods are quality 1 (white). Raising it stops bots selling their gathered materials, which is a large fraction of the AH.
+
+**Do not raise `Auction.Baseline.CraftMarginPercent` above ~20 unless you know what you're doing.** Anything above 20% will start reserving reagents for crafts that never fire, and those reagents will accumulate in bot bags.
+
+------
 
 ## How the baseline works
 
@@ -230,221 +296,30 @@ Every step degrades gracefully: if a row does not exist for a given item, the bo
 
 ### Freshness
 
-The worldserver polls the baseline table every `Baseline.ReloadCheckMinutes` (default 5). The poll is a single-row aggregate query on a small table and costs microseconds. When the newest snapshot tag differs from the currently loaded one, the worldserver re-reads both tables in place — a few hundred milliseconds — and the bots use the new values on their next AH decision. No restart, no service interruption, no bot state reset.
-
-------
-
-## Enabling debug mode
-
-The auctioneer has a detailed diagnostic mode for tracking what individual bots are doing. It is off by default because it produces a lot of output per AH visit. It is intended for troubleshooting, tuning, and understanding bot behavior — **not for leaving on permanently**.
-
-### Step 1 — enable the diagnostic switch
-
-In `env/etc/modules/playerbots_auction.conf`:
-
-```bash
-AiPlayerbot.DebugAuction = 1
-```
-
-
-
-That is the minimum. For the very verbose per-sale filter breakdown — every item scanned, every reason it was rejected — also set:
-
-```bash
-AiPlayerbot.Auction.RunAnalysis = 1
-```
-
-
-
-`RunAnalysis` is intended for tuning `MinSellQuality`, `MinSellValueCopper`, `SellFullStacksOnly` and the other sell filters. Do not leave it on in production.
-
-
-
-### Step 2 — raise the logger level
-
-`DebugAuction` sends its output through the `playerbots` logger. By default the logger is at level 4 (Info), which is too low to capture the `[AH-TRACE]` lines. Change it in `env/etc/worldserver.conf`:
-
-```bash
-Logger.playerbots=5,Console Playerbots
-Appender.Playerbots=2,5,0,Playerbots.log,w
-Appender.Console=1,5,0,"1 9 3 6 5 8"
-```
-
-
-
-Level `5` means Debug. `Appender.Playerbots` writes to `logs/Playerbots.log`. The logger line sends Debug output to both the console and the file — remove `Console` if you want file-only. The `Appender.Console` line raises the console appender's own level to Debug so `Console` in the logger line actually produces output.
-
-Restart the worldserver (or run `.reload config`) for the changes to take effect.
-
-### Step 3 — what to grep for
-
-All AH-specific output is prefixed with `[AH-TRACE]`. The most common queries:
-
-```bash
-# Live tail of everything AH-related
-tail -f logs/Playerbots.log | grep '\[AH-TRACE\]'
-
-# All activity for one bot
-tail -f logs/Playerbots.log | grep '\[AH-TRACE\] Avuni'
-
-# Every successful listing in the last hour
-grep '\[AH-TRACE\].*listed \[' logs/Playerbots.log | tail -50
-
-# Every relist attempt
-grep 'relist:' logs/Playerbots.log | tail -100
-
-# Every baseline reload
-grep 'Auction baseline snapshot changed' logs/Playerbots.log
-```
-
-
-
-### Reading the output
-
-**Startup markers.** Emitted once at boot when `Baseline.Mode = 2`:
-
-```
->> Loaded N auctioneer baseline items, snapshot 'YYYY-MM-DD_HH'
->> Loaded N auctioneer baseline categories
-```
-
-
-
-If these are absent, either the mode is 1 or the tables are empty.
-
-**Live reload marker.** Emitted when the running server notices a fresh import without a restart:
-
-```
->> Auction baseline snapshot changed (old -> new), reloading
-```
-
-
-
-**The full AH visit sequence.** One bot, one visit, in order:
-
-```
-[AH-TRACE] <bot> approaching: distToPos=42.17 entry=XXXX lastReach=0
-[AH-TRACE] <bot> found auctioneer <Name> (entry XXXX), distToNPC=4.83
-[AH-TRACE] <bot> sending MSG_AUCTION_HELLO to <Name> (entry XXXX), dist=4.83
-[AH-TRACE] <bot> listing read: N auctions on this AH
-[AH-TRACE] <bot> reserved K reagents for craft arbitrage
-[AH-TRACE] <bot> relist: M returned items in mail
-[AH-TRACE] <bot> relist: M returned items, walking to mailbox
-[AH-TRACE] <bot> relist: mailbox reached, collecting
-[AH-TRACE] <bot> relist: collected M items, queued M for relist
-[AH-TRACE] <bot> listed [ITEM_ID] xCOUNT bid=X buyout=Y dur=720 relist=yes
-[AH-TRACE] <bot> listed [ITEM_ID] xCOUNT bid=X buyout=Y dur=720 relist=no
-[AH-TRACE] <bot> bid/bought auctionId=X price=Y max=Z
-[AH-TRACE] <bot> re-bid auctionId=X price=Y (max=Z)
-[AH-TRACE] <bot> dropping tracked bid auctionId=X (item no longer wanted)
-```
-
-
-
-The `listed` line is the one to watch for a successful sale. `relist=yes` means the item came back from an expired auction and is being relisted; `relist=no` means a fresh listing from the bot's bags.
-
-The mailbox walk sequence (`walking to mailbox` → `mailbox reached, collecting`) indicates the bot temporarily left the auctioneer, collected returned items, and will walk back. If the sequence starts but never reaches `mailbox reached`, either the bot cannot path to a mailbox or the visit's 5-minute timeout fired before it got there.
-
-**Per-sale filter breakdown.** With `RunAnalysis = 1`, every sell decision emits:
-
-```
-[AH-TRACE] <bot> FindItemToSell cfg: minQuality=... minValue=... sellEnabled=...
-[AH-TRACE] <bot> sellpick: scanned=N candidates=M rejTrade=... rejQuality=...
-                         rejEquipped=... rejValue=... rejQuest=... rejBound=...
-                         rejFullStack=... rejClassReagent=... rejUseful=...
-                         rejPotion=... rejVendorSold=... rejExcluded=... bags=[...]
-[AH-TRACE] <bot> candidate pool: [ITEM_ID qQ cC] [ITEM_ID qQ cC] ...
-```
-
-
-
-The `sellpick` line is the single most useful diagnostic for "why is my bot not listing this item". Every rejection counter maps to one config setting:
-
-| Counter           | Rejected by                                               |
-| :---------------- | :-------------------------------------------------------- |
-| `rejTrade`        | Item is soulbound or otherwise cannot be traded           |
-| `rejQuality`      | Below `Auction.MinSellQuality`                            |
-| `rejEquipped`     | Item is currently equipped                                |
-| `rejValue`        | Below `Auction.MinSellValueCopper`                        |
-| `rejQuest`        | Quest item and `ProtectQuestItems = 1`                    |
-| `rejBound`        | Soulbound and `ProtectBoundItems = 1`                     |
-| `rejFullStack`    | Partial stack and `SellFullStacksOnly = 1`                |
-| `rejClassReagent` | Class reagent and `ProtectClassReagents = 1`              |
-| `rejUseful`       | Bot considers it useful and `ProtectUsefulItems = 1`      |
-| `rejPotion`       | Potion count is at or below the keep cap                  |
-| `rejVendorSold`   | Stocked by an NPC vendor and `ExcludeVendorSoldItems = 1` |
-| `rejExcluded`     | Item is in `ExcludedItemIds`                              |
-
-The `candidate pool` line shows the top-5 highest-value items that survived every filter. The bot picks one of these at random — that is why the same bot does not always list the same item.
-
-### Sample troubleshooting walks
-
-**"My bots are not visiting the AH at all."**
-
-```bash
-grep '\[AH-TRACE\]' logs/Playerbots.log | head -5
-```
-
-
-
-If empty, either `DebugAuction = 0` or `Auction.Enabled = 0` or the bots have no reason to visit. Check the visit gates: `AuctionVisit.MinLevel`, `MinBagFillPercent`, `MinGoldCopper`. If those are all satisfied and the bots still do not visit, check `RpgStatusProbWeight.GoAuctioneer` — a value of 0 disables the status entirely.
-
-**"My bots go to the AH but never list anything."**
-
-```bash
-grep 'sellpick:' logs/Playerbots.log | grep -v 'candidates=[1-9]' | tail -20
-```
-
-
-
-That filters for `candidates=0`, meaning nothing survived the sell filters. Every `rej*` counter tells you which filter is the blocker. The most common ones on a fresh server are `rejValue` (items too cheap to list) and `rejUseful` (the bot wants to keep everything).
-
-**"My bots list but never relist returned mail."**
-
-```bash
-grep 'relist:' logs/Playerbots.log | tail -50
-```
-
-
-
-Watch for a bot that repeatedly shows `walking to mailbox` without ever reaching `mailbox reached`. That bot cannot path to any mailbox from its current position. The map may genuinely have no mailbox within reach, or the bot may be stuck against geometry.
-
-**"My bots are listing at absurd prices."**
-
-```bash
-grep 'listed \[' logs/Playerbots.log | tail -20
-```
-
-
-
-Compare the `buyout=` values against what you expect for the item. If they are wildly high or low, either `Baseline.Mode = 1` (legacy pricing, no reference) or the baseline row for those items is thin. Verify with:
-
-```sql
-SELECT item_id, price_samples, price_low, price_median, price_high
-FROM acore_characters.auctioneer_baseline_item
-WHERE faction = 2 AND item_id IN (<the-item-ids-from-the-log>);
-```
-
-If `price_samples` is very low for those items, they are edge cases that the reference market barely saw, and the bot's draw from the band will be noisy.
+The worldserver polls the baseline table every `Baseline.ReloadCheckMinutes` (default 60). The poll is a single-row aggregate query on a small table and costs microseconds. When the newest snapshot tag differs from the currently loaded one, the worldserver re-reads both tables in place — a few hundred milliseconds — and the bots use the new values on their next AH decision. No restart, no service interruption, no bot state reset.
 
 ------
 
 ## Configuration reference
 
-The full configuration file lives at `modules/mod-playerbots-auctioneer/conf/playerbots_auction.conf.dist` (path depends on where the module was cloned), but it should automatically be copied to its server configuration into the modules directory when you run `make install`  after compiling the core. Every setting has an inline comment describing what it does, what values it accepts, and what the default means. The most commonly tuned settings:
+The full configuration file lives at `modules/mod-playerbots-auctioneer/conf/playerbots_auction.conf.dist` (path depends on where the module was cloned), but it should automatically be copied to its server configuration into the modules directory when you run `make install` after compiling the core. Every setting has an inline comment describing what it does, what values it accepts, and what the default means. The most commonly tuned settings:
 
-| Setting                                       | Purpose                                                |
-| :-------------------------------------------- | :----------------------------------------------------- |
-| `Auction.Enabled`                             | Master switch for the whole subsystem                  |
-| `Baseline.Mode`                               | 1 = legacy pricing, 2 = reference pricing              |
-| `Auction.VisitMinMinutes` / `VisitMaxMinutes` | How often each bot returns to the AH                   |
-| `Auction.MinSellQuality`                      | Lowest item quality that will be listed                |
-| `Auction.SellUndercutPercentMin` / `Max`      | How aggressively bots undercut live listings           |
-| `Auction.BuyScanChancePercent`                | Chance per RPG cycle that a bot scans the AH for buys  |
-| `Auction.MaxActiveListingsPerBot`             | Per-bot cap on concurrent listings                     |
-| `Baseline.ReloadCheckMinutes`                 | How often the running server checks for a new baseline |
-| `Baseline.CraftArbitrageEnabled`              | Reserve reagents for profitable crafts                 |
-| `Baseline.CraftMarginPercent`                 | Minimum margin before a craft is considered profitable |
+| Setting                                       | Purpose                                                 |
+| :-------------------------------------------- | :------------------------------------------------------ |
+| `Auction.Enabled`                             | Master switch for the whole subsystem                   |
+| `Baseline.Mode`                               | 1 = legacy pricing, 2 = reference pricing               |
+| `Auction.VisitMinMinutes` / `VisitMaxMinutes` | How often each bot returns to the AH                    |
+| `Auction.MinSellQuality`                      | Lowest item quality that will be listed                 |
+| `Auction.MinSellValueCopper`                  | Lowest vendor sell price that will be listed            |
+| `Auction.SellUndercutPercentMin` / `Max`      | How aggressively bots undercut live listings            |
+| `Auction.BuyScanChancePercent`                | Chance per RPG cycle that a bot scans the AH for buys   |
+| `Auction.MaxActiveListingsPerBot`             | Per-bot cap on concurrent listings                      |
+| `Auction.MaxSellsPerVisit`                    | Fresh listings per AH visit                             |
+| `Auction.AllowBuyout`                         | Whether bots buy out auctions or only bid               |
+| `Baseline.ReloadCheckMinutes`                 | How often the running server checks for a new baseline  |
+| `Baseline.CraftArbitrageEnabled`              | Reserve reagents for profitable crafts (off by default) |
+| `RpgStatusProbWeight.GoVendor`                | How often bots pick a vendor visit                      |
+| `VendorVisit.MinBagFillPercent`               | Bag pressure that triggers a vendor visit               |
 
 ### Modes explained
 
@@ -485,27 +360,13 @@ The tool uses two independent connections:
 - **`[world]`** — read-only. One query: `SELECT entry, class, Quality FROM item_template`. This is the source of the item filter (only items your realm actually has are imported) and the (class, quality) classification used by the category table.
 - **`[character]`** — read-write. Where the baseline tables live. The tool never touches `acore_world` beyond the one `item_template` read, and never touches `acore_playerbots` at all.
 
-They can be the same user or different users, on the same host or on different hosts. The config handles every combination through the inheritance mechanism described in section 5 above.[](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls)
+They can be the same user or different users, on the same host or on different hosts. The config handles every combination through the inheritance mechanism described in section 5 above.
 
 ------
 
 ## Contributing
 
-[Issues](https://github.com/electrobutterfly/mod-playerbots-auctioneer/issues) and [pull requests](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls) are welcome. When filing a bug against the auctioneer specifically, please attach:
-
-- The `[AH-TRACE]` output for a bot exhibiting the problem.
-
-- Your `playerbots_auction.conf`
-
-- The output of:
-
-  ```sql
-  SELECT snapshot FROM acore_characters.auctioneer_baseline_item LIMIT 1;
-  ```
-
-  
-
-That is almost always enough to reproduce the problem locally.
+[Issues](https://github.com/electrobutterfly/mod-playerbots-auctioneer/issues) and [pull requests](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls) are welcome. When filing a bug against the auctioneer specifically, please attach the diagnostic bundle described in [TROUBLESHOOTING](https://troubleshooting.md/).
 
 ------
 
