@@ -398,6 +398,7 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
     uint32 scanned = 0, rejTrade = 0, rejQuality = 0, rejEquipped = 0, rejValue = 0;
     uint32 rejQuest = 0, rejBound = 0, rejFullStack = 0, rejClassReagent = 0;
     uint32 rejUseful = 0, rejPotion = 0, rejVendorSold = 0, rejExcluded = 0;
+    uint32 rejExhausted = 0;
 
     for (Item* it : botAI->GetInventoryItems())
     {
@@ -473,6 +474,23 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
             continue;
         }
 
+        // Add Auctioneer: an item whose relist budget is exhausted must not
+        // be re-queued. The mail step already declined to relist it; if we
+        // re-add it here it gets listed again, expires again, and comes back
+        // again -- the loop the retry cap exists to break. ItemUsageValue
+        // already classifies it as VENDOR, so the vendor path will pick it up.
+        if (sPlayerbotAIConfig.auctionMaxRelistRetries > 0 &&
+            sRandomPlayerbotMgr.IsRandomBot(bot))
+        {
+            uint32 const retries = sRandomPlayerbotMgr.GetValue(
+                bot, "auction.relist." + std::to_string(p->ItemId));
+            if (retries >= sPlayerbotAIConfig.auctionMaxRelistRetries)
+            {
+                if (runAnalysis) ++rejExhausted;
+                continue;
+            }
+        }
+
         if (sPlayerbotAIConfig.auctionProtectUsefulItems)
         {
             AiObjectContext* ctx = botAI->GetAiObjectContext();
@@ -537,11 +555,13 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
                   "[AH-TRACE] {} sellpick: scanned={} candidates={} "
                   "rejTrade={} rejQuality={} rejEquipped={} rejValue={} "
                   "rejQuest={} rejBound={} rejFullStack={} rejClassReagent={} "
-                  "rejUseful={} rejPotion={} rejVendorSold={} rejExcluded={} bags=[{}]",
+                  "rejUseful={} rejPotion={} rejVendorSold={} rejExcluded={} "
+                  "rejExhausted={} bags=[{}]",
                   bot->GetName(), scanned, candidates.size(),
                   rejTrade, rejQuality, rejEquipped, rejValue,
                   rejQuest, rejBound, rejFullStack, rejClassReagent,
-                  rejUseful, rejPotion, rejVendorSold, rejExcluded, bagSizes);
+                  rejUseful, rejPotion, rejVendorSold, rejExcluded, rejExhausted,
+                  bagSizes);
     }
 
     if (candidates.empty())
