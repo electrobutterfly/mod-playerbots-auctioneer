@@ -74,9 +74,11 @@ enum NewRpgStatus : int
     RPG_OUTDOOR_PVP = 8,
     // Roam the current zone harvesting herb/ore nodes
     RPG_DO_GATHER = 9,
-    // Auctioneer subsystem (local fork)
+    // Auctioneer subsystem
     RPG_GO_AUCTIONEER = 10,
-    RPG_STATUS_END = 11
+    // Add Vendor
+    RPG_GO_VENDOR = 11,
+    RPG_STATUS_END = 12
 };
 
 #define MAX_SPECNO 20
@@ -505,6 +507,12 @@ public:
     int32 auctionVisitMinLevel;
     int32 auctionVisitMinBagFillPercent;
     int32 auctionVisitMinGoldCopper;
+
+    // Add Vendor
+    int32 vendorVisitMinLevel;
+    int32 vendorVisitMinBagFillPercent;
+    uint32 vendorVisitMinMinutes;
+    uint32 vendorVisitMaxMinutes;
     bool SyncLevelWithPlayers;
     bool RandomBotConcentrateInPlayerZone;
     bool AutoLearnQuestSpells;

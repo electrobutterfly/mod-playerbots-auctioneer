@@ -4603,6 +4603,48 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
     return true;
 }
 
+   // Add Vendors
+   bool TravelMgr::SelectVendorByMap(Player* bot, NpcLocation& outVendor)
+{
+    if (!bot)
+        return false;
+
+    std::vector<NpcLocation> const& candidates =
+        (bot->GetTeamId() == TEAM_ALLIANCE) ? allianceVendors : hordeVendors;
+
+    if (candidates.empty())
+        return false;
+
+    uint32 mapId = bot->GetMapId();
+    WorldPosition botPos(bot);
+
+    NpcLocation const* best = nullptr;
+    float bestSqDist = std::numeric_limits<float>::max();
+
+    for (auto const& npc : candidates)
+    {
+        if (npc.loc.GetMapId() != mapId)
+            continue;
+
+        float dx = npc.loc.GetPositionX() - botPos.GetPositionX();
+        float dy = npc.loc.GetPositionY() - botPos.GetPositionY();
+        float dz = npc.loc.GetPositionZ() - botPos.GetPositionZ();
+        float sq = dx * dx + dy * dy + dz * dz;
+
+        if (sq < bestSqDist)
+        {
+            bestSqDist = sq;
+            best = &npc;
+        }
+    }
+
+    if (!best)
+        return false;
+
+    outVendor = *best;
+    return true;
+}
+
 void TravelMgr::PrepareZone2LevelBracket()
 {
     // Classic WoW - starter zones
@@ -4691,6 +4733,8 @@ void TravelMgr::PrepareDestinationCache()
     uint32 bankerCount = 0;
     // Add Auctioneer
     uint32 auctioneerCount = 0;
+    // Add Vendors
+    uint32 vendorCount = 0;
 
     LOG_INFO("playerbots", "Preparing destination caches for {} levels...", maxLevel);
     // Temporary map to group creatures by entry and area
@@ -4881,9 +4925,38 @@ void TravelMgr::PrepareDestinationCache()
 
             auctioneerCount++;
         }
+
+        // === VENDORS ===
+        // Independent of the else-if chain above. An NPC that is both an
+        // auctioneer and a vendor (rare, but some capital-city vendors do
+        // have both flags) should land in both caches: the vendor cache is
+        // used for selling surplus and old soulbound gear, and the auctioneer
+        // cache is used for listing and bidding. Being in one does not imply
+        // being in the other.
+        if (creatureTemplate->npcflag & UNIT_NPC_FLAG_VENDOR)
+        {
+            FactionTemplateEntry const* factionEntry =
+                sFactionTemplateStore.LookupEntry(creatureTemplate->faction);
+            if (!factionEntry)
+                continue;
+
+            bool forHorde    = !(factionEntry->hostileMask & 4);
+            bool forAlliance = !(factionEntry->hostileMask & 2);
+
+            NpcLocation npc;
+            npc.loc = WorldLocation(mapId, x, y, z, orient);
+            npc.entry = templateEntry;
+
+            if (forAlliance)
+                allianceVendors.push_back(npc);
+            if (forHorde)
+                hordeVendors.push_back(npc);
+
+            vendorCount++;
+        }
     }
     
-        LOG_INFO("playerbots", ">> {} flight masters, {} innkeepers, {} bankers and {} auctioneers collected.", flightMastersCount, innkeepersCount, bankerCount, auctioneerCount);
+        LOG_INFO("playerbots", ">> {} flight masters, {} innkeepers, {} bankers, {} auctioneers and {} vendors collected.", flightMastersCount, innkeepersCount, bankerCount, auctioneerCount, vendorCount);
 
     // Process temporary caches
     for (auto const& [gridTuple, creatureDataList] : tempLocsCache)
@@ -4948,6 +5021,6 @@ void TravelMgr::PrepareDestinationCache()
         }
     }
     // Add Auctioneers
-        LOG_INFO("playerbots", ">> {} flight masters, {} innkeepers, {} bankers and {} auctioneers collected.",
-             flightMastersCount, innkeepersCount, bankerCount, auctioneerCount);
+        LOG_INFO("playerbots", ">> {} flight masters, {} innkeepers, {} bankers, {} auctioneers and {} vendors collected.",
+             flightMastersCount, innkeepersCount, bankerCount, auctioneerCount, vendorCount);
 }

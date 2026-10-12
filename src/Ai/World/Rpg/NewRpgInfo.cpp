@@ -44,6 +44,20 @@ void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
     data = data_go;
 }
 
+void NewRpgInfo::ChangeToGoVendor(WorldPosition pos, uint32 vendorEntry)
+{
+    startT = getMSTime();
+    GoVendor data_go;
+    data_go.pos = pos;
+    data_go.vendorEntry = vendorEntry;
+    data_go.lastReach = 0;
+    data_go.vendorSellDone = false;
+    data_go.disenchantAttempts = 0;
+    data_go.disenchantSuccesses = 0;
+    data_go.disenchantDone = false;
+    data = data_go;
+}
+
 void NewRpgInfo::ChangeToWanderNpc()
 {
     startT = getMSTime();
@@ -131,6 +145,8 @@ NewRpgStatus NewRpgInfo::StatusFromString(std::string const& name)
     if (name == "go camp")        return RPG_GO_CAMP;
     // Add Auctioneer
     if (name == "go auctioneer")  return RPG_GO_AUCTIONEER;
+    // Add Vendor
+    if (name == "go vendor")      return RPG_GO_VENDOR;
     if (name == "do quest")       return RPG_DO_QUEST;
     if (name == "travel flight")  return RPG_TRAVEL_FLIGHT;
     if (name == "outdoor pvp")    return RPG_OUTDOOR_PVP;
@@ -147,6 +163,8 @@ NewRpgStatus NewRpgInfo::GetStatus()
         if constexpr (std::is_same_v<T, GoCamp>) return RPG_GO_CAMP;
         // Add Auctioneer
         if constexpr (std::is_same_v<T, GoAuctioneer>) return RPG_GO_AUCTIONEER;
+        // Add Vendor
+        if constexpr (std::is_same_v<T, GoVendor>) return RPG_GO_VENDOR;
         if constexpr (std::is_same_v<T, WanderNpc>) return RPG_WANDER_NPC;
         if constexpr (std::is_same_v<T, WanderRandom>) return RPG_WANDER_RANDOM;
         if constexpr (std::is_same_v<T, Rest>) return RPG_REST;
@@ -187,6 +205,17 @@ std::string NewRpgInfo::ToString()
                 << arg.pos.GetPositionY() << " " << arg.pos.GetPositionZ();
             out << "\nAuctioneerEntry: " << arg.auctioneerEntry;
             out << "\nlastReach: " << arg.lastReach;
+        }
+        // Add Vendor
+        else if constexpr (std::is_same_v<T, GoVendor>)
+        {
+            out << "GO_VENDOR";
+            out << "\nVendorPos: " << arg.pos.GetMapId() << " " << arg.pos.GetPositionX() << " "
+                << arg.pos.GetPositionY() << " " << arg.pos.GetPositionZ();
+            out << "\nVendorEntry: " << arg.vendorEntry;
+            out << "\nlastReach: " << arg.lastReach;
+            out << "\nvendorSellDone: " << arg.vendorSellDone;
+            out << "\ndisenchantDone: " << arg.disenchantDone;
         }
         else if constexpr (std::is_same_v<T, WanderNpc>)
         {

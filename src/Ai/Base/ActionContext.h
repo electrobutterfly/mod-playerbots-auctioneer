@@ -280,6 +280,8 @@ public:
         creators["new rpg do gather"] = &ActionContext::new_rpg_do_gather;
         // Add Auctioneer
         creators["new rpg go auctioneer"] = &ActionContext::new_rpg_go_auctioneer;
+        // Add Vendor
+        creators["new rpg go vendor"] = &ActionContext::new_rpg_go_vendor;
         creators["wait for attack keep safe distance"] = &ActionContext::wait_for_attack_keep_safe_distance;
     }
 
@@ -487,6 +489,8 @@ private:
     static Action* new_rpg_do_gather(PlayerbotAI* botAI) { return new NewRpgDoGatherAction(botAI); }
     // Auctioneer subsystem
     static Action* new_rpg_go_auctioneer(PlayerbotAI* botAI) { return new NewRpgGoAuctioneerAction(botAI); }
+    // Add Vendor
+    static Action* new_rpg_go_vendor(PlayerbotAI* botAI) { return new NewRpgGoVendorAction(botAI); }
     static Action* wait_for_attack_keep_safe_distance(PlayerbotAI* botAI) { return new WaitForAttackKeepSafeDistanceAction(botAI); }
 };
 

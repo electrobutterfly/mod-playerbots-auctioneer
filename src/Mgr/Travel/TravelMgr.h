@@ -881,6 +881,7 @@ public:
     std::vector<WorldLocation> GetCityLocations(Player* bot);
     std::vector<uint32> GetFlightNodesInZone(uint32 zoneId, TeamId team, uint32 excludeNode = 0) const;
     bool SelectAuctioneerByMap(Player* bot, NpcLocation& outAuctioneer);
+    bool SelectVendorByMap(Player* bot, NpcLocation& outVendor);
     std::vector<WorldLocation> const& GetLocsPerLevelCache(uint8 level) { return locsPerLevelCache[level]; }
 
     template <class D, class W, class URBG>
@@ -1001,6 +1002,9 @@ private:
     // Declare Autioneers
     std::vector<NpcLocation> allianceAuctioneers;
     std::vector<NpcLocation> hordeAuctioneers;
+    // Declare Vendors
+    std::vector<NpcLocation> allianceVendors;
+    std::vector<NpcLocation> hordeVendors;
     std::map<uint8, std::vector<WorldLocation>> locsPerLevelCache;
     std::unordered_map<uint32, std::vector<WorldLocation>> creatureSpawnsByTemplate;
     std::map<uint32, LevelBracket> zone2LevelBracket;

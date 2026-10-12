@@ -93,6 +93,15 @@ triggers.push_back(
                 }
             )
         );
+        // Add Vendor
+        triggers.push_back(
+            new TriggerNode(
+                "go vendor status",
+                {
+                    NextAction("new rpg go vendor", 3.0f)
+                }
+            )
+        );
     }
 }
 

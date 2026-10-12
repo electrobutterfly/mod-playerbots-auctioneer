@@ -625,6 +625,8 @@ public:
     time_t bgReleaseAttemptTime = 0;
     // Add Auctioneer
     time_t nextAuctionVisitTime = 0;
+    // Add Vendor
+    time_t nextVendorVisitTime = 0;
 
     struct TrackedAuction
     {
