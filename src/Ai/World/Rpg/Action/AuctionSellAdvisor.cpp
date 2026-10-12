@@ -169,13 +169,22 @@ void ComputeSellPrice(PlayerbotAI* botAI, Item* item, uint32& outBid, uint32& ou
 
     // Market reference: the cheapest per-unit price any current listing asks
     // for this item. 0 if nothing matching is up.
+    //
+    // The bot's own listings are excluded. Without this, a bot that queues
+    // two stacks of the same item in one visit lists the first at market
+    // price, then on the second stack sees its own listing as "the market"
+    // and undercuts itself. Real players list multiple stacks at the same
+    // price; they do not race against their own recent listings.
     uint32 lowestPerUnit = 0;
     if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction()))
     {
+        ObjectGuid const botGuid = bot->GetGUID();
         for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)
         {
             AuctionEntry* entry = it->second;
             if (!entry)
+                continue;
+            if (entry->owner == botGuid)
                 continue;
             if (entry->item_template != proto->ItemId)
                 continue;
