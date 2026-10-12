@@ -9,6 +9,7 @@
   <img src="banner.jpg" alt="Playerbots Banner" width="700px">
 </div>
 
+
 # Playerbots-Auctioneer
 
 `Playerbots-Auctioneer` is a heavily modified [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) fork which provides an auction-house subsystem.

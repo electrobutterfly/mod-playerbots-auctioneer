@@ -148,7 +148,7 @@ ItemUsage ItemUsageValue::Calculate()
         if (ammoUsage != ITEM_USAGE_NONE)
             return ammoUsage;
     }
-    // Need to add something like free bagspace or item value.
+        // Need to add something like free bagspace or item value.
     if (proto->SellPrice > 0)
     {
         if (proto->Quality >= ITEM_QUALITY_NORMAL && !isSoulbound && proto->Bonding != BIND_WHEN_PICKED_UP)
@@ -157,12 +157,30 @@ ItemUsage ItemUsageValue::Calculate()
             // Only classify as AH if the seller would actually accept it. Prevents
             // items that FindItemToSell would reject from being frozen in bags by
             // the SellVendorItemsVisitor / SmartDestroyItemAction protection patches.
-            if (sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
+            bool const vendorFodder =
+                sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
                 (proto->Quality < sPlayerbotAIConfig.auctionMinSellQuality ||
-                 proto->SellPrice < sPlayerbotAIConfig.auctionMinSellValueCopper))
-            {
+                 proto->SellPrice < sPlayerbotAIConfig.auctionMinSellValueCopper);
+
+            // Add Auctioneer
+            // If this bot has exhausted its relist budget for this item, the
+            // auction house has effectively rejected it. Classify as vendor
+            // trash so the vendor path can take it, and if SellPrice is zero
+            // the destroy path will handle it. Without this, an exhausted item
+            // sits in bags forever: the sell filters exclude it and the destroy
+            // filters skip it while it is still AH-classified. The underlying
+            // retry counter expires after MaxRandomBotInWorldTime, so a bot
+            // that later loots a fresh stack of the same item ID is not
+            // permanently punished.
+            bool const auctionExhausted =
+                sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
+                sPlayerbotAIConfig.auctionMaxRelistRetries > 0 &&
+                bot && sRandomPlayerbotMgr.IsRandomBot(bot) &&
+                sRandomPlayerbotMgr.GetValue(bot, "auction.relist." + std::to_string(proto->ItemId)) >=
+                    sPlayerbotAIConfig.auctionMaxRelistRetries;
+
+            if (vendorFodder || auctionExhausted)
                 return ITEM_USAGE_VENDOR;
-            }
             return ITEM_USAGE_AH;
         }
         else

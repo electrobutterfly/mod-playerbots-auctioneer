@@ -790,13 +790,40 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                                 uint32 const retries = sRandomPlayerbotMgr.GetValue(botLow, key);
                                 if (retries >= maxRetries)
                                 {
+                                    if (retries >= maxRetries)
+                                {
                                     if (debugAuction)
                                     {
                                         LOG_ERROR("playerbots",
                                                   "[AH-TRACE] {} relist: entry {} hit max retries ({}/{}), not relisting",
                                                   bot->GetName(), entry, retries, maxRetries);
                                     }
+
+                                    // Add Auctioneer: if the item has no vendor
+                                    // value at all, destroy it now rather than
+                                    // letting it sit in bags until the next
+                                    // bag-pressure destroy pass. SellPrice > 0
+                                    // items are left for the vendor path.
+                                    ItemTemplate const* exhaustedProto =
+                                        sObjectMgr->GetItemTemplate(entry);
+                                    if (exhaustedProto && exhaustedProto->SellPrice == 0)
+                                    {
+                                        Item* exhaustedItem =
+                                            PlayerbotAuction::FindTradeableItemInBags(botAI, entry);
+                                        if (exhaustedItem)
+                                        {
+                                            bot->DestroyItem(exhaustedItem->GetBagSlot(),
+                                                             exhaustedItem->GetSlot(), true);
+                                            if (debugAuction)
+                                            {
+                                                LOG_ERROR("playerbots",
+                                                          "[AH-TRACE] {} relist: entry {} has no vendor value, destroyed",
+                                                          bot->GetName(), entry);
+                                            }
+                                        }
+                                    }
                                     continue;
+                                }
                                 }
                                 sRandomPlayerbotMgr.SetValue(botLow, key, retries + 1);
                             }
