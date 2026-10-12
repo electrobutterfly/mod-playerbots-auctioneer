@@ -1,14 +1,14 @@
 <p align="center">
-    <a href="https://github.com/electrobutterfly/mod-playerbots-auctioneer">Playerbots-Auctioneer</a>
+    <a href="https://github.com/mod-playerbots/azerothcore-wotlk">Playerbots-Auctioneer</a>
     |
     <a href="https://github.com/NathanHandley/mod-ah-bot-plus">AH Bot Plus</a>
     |
-    <a href="https://github.com/electrobutterfly/azerothcore-wotlk-playerbots">Azerothcore-Playerbots</a>
+    <a href="https://github.com/mod-playerbots/azerothcore-wotlk">Azerothcore-Playerbots</a>
 </p>
-
 <div align="center">
   <img src="banner.jpg" alt="Playerbots Banner" width="700px">
 </div>
+
 # Playerbots-Auctioneer
 
 `Playerbots-Auctioneer` is a heavily modified [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) fork which provides an auction-house subsystem.
@@ -16,11 +16,6 @@
 Out of the box, mod-playerbots bots do not touch the Auction House. They do not buy, they do not sell, they do not bid, they do not walk to an auctioneer, they do not collect mail. On a playerbot-only server the AH is populated by whatever the server operator places there by hand, or by mod-ah-bot-plus if it is enabled — it is not an economy driven by the bot population.
 
 `Playerbots-Auctioneer` gives the bot population a complete auction-house economy of its own. Every bot walks to the AH, sells his by his professions crafted stuff and surplus inventory, buys items it needs, bids on and defends listings it wants, collects expired mail, and relists returned items — the same lifecycle a human player follows. The economy runs **autonomously**: no human players are required for the AH to fill up, and the buyer and seller features of mod-ah-bot-plus do not need to be enabled for the bots to trade with each other.
-
----
-
-> [!IMPORTANT]
-> **You must use the electrobutterfly core fork.** `Playerbots-Auctioneer` is patched against — and only against — the commit history of [electrobutterfly/azerothcore-wotlk-playerbots](https://github.com/electrobutterfly/azerothcore-wotlk-playerbots). It will **not** compile or run correctly against the upstream [mod-playerbots/azerothcore-wotlk](https://github.com/mod-playerbots/azerothcore-wotlk) repo. If you clone the upstream core and then drop this module into `modules/`, the build will fail (or, worse, silently misbehave). Always clone the electrobutterfly fork as your core, as shown in the [Installation](#installation) steps below.
 
 ---
 
@@ -42,9 +37,13 @@ mod-ah-bot-plus is installed as a dependency because the auctioneer's buyer and 
 
 The AH bot GUIDs from mod-ah-bot-plus are used only to classify sellers for the buyer-preference logic (`AiPlayerbot.Auction.AhBotGUIDs`), so the bots know the difference between "another playerbot" and "the dedicated AH bot". If you are not running mod-ah-bot-plus, leave that config key empty and the classification falls back to `Unknown`.
 
+
+
 ### Bots sometimes seem to "fly or go through wall"
 
 That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)
+
+
 
 ---
 
@@ -52,23 +51,18 @@ That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots
 
 ### 1. AzerothCore Playerbots
 
-> [!CAUTION]
-> Clone **only** the electrobutterfly fork. The auctioneer module is written against this fork's specific commit history and CMake layout. The upstream `mod-playerbots/azerothcore-wotlk` repository does **not** contain the hooks this module needs, and cloning it will result in build failures or a non-functional auctioneer.
-
-Clone the electrobutterfly playerbots fork (which itself is a fork of the mod-playerbots core):
+Clone the AzerothCore playerbots fork:
 
 ```bash
-git clone https://github.com/electrobutterfly/azerothcore-wotlk-playerbots.git --branch=Playerbot
+git clone https://github.com/mod-playerbots/azerothcore-wotlk.git --branch=Playerbot
 ```
-
-If you already have a checkout of the upstream `mod-playerbots/azerothcore-wotlk`, you will need to re-clone from the electrobutterfly fork (or re-point your existing checkout at it) before installing this module — do not attempt to graft the module onto the upstream tree.
 
 ### 2. Modules
 
 The auctioneer depends on the mod-ah-bot-plus module. Install both inside the `modules/` directory:
 
 ```bash
-cd azerothcore-wotlk-playerbots/modules
+cd azerothcore-wotlk/modules
 
 # Playerbots-Auctioneer — the auction-house subsystem (this module)
 git clone https://github.com/electrobutterfly/mod-playerbots-auctioneer.git
@@ -95,6 +89,8 @@ cp playerbots_auction.conf.dist playerbots_auction.conf
 $EDITOR playerbots_auction.conf
 ```
 
+
+
 The two settings you should change:
 
 ```bash
@@ -119,6 +115,8 @@ sudo mkdir -p /var/lib/auctioneer-baseline
 sudo chown $USER /var/lib/auctioneer-baseline
 ```
 
+
+
 The config has five sections:
 
 - `[mysql]` — shared defaults for the two database connections below.
@@ -137,11 +135,15 @@ Create the tables (idempotent — safe to run more than once, and only needed if
 python3 auctioneer.py schema | mysql -u acore -p acore_characters
 ```
 
+
+
 Run the full pipeline once by hand:
 
 ```bash
 python3 auctioneer.py run
 ```
+
+
 
 This downloads both faction Lua files (~30 MB total), parses them, filters to items present in your `item_template`, computes per-item stats, writes `baseline.sql`, and pipes it into `acore_characters`. Takes 30–60 seconds and 200–500 MB peak memory.
 
@@ -160,12 +162,16 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now auctioneer.timer
 ```
 
+
+
 *Option B — cron:*
 
 ```bash
 cd modules/mod-playerbots-auctioneer/auctioneer_baseline
 sudo cp cron/auctioneer.cron /etc/cron.d/auctioneer
 ```
+
+
 
 Both fire the same command every 12 hours. 12 hours matches how often the source mirror updates — running more often than that is wasted bandwidth.
 
@@ -188,11 +194,15 @@ grep 'auctioneer baseline' logs/Playerbots.log
 grep '\[AH-TRACE\]' logs/Playerbots.log | tail -20
 ```
 
+
+
 If (1) shows zero rows, run `python3 auctioneer.py run` once by hand and recheck.
 
 If (2) shows nothing, the config has `Baseline.Mode = 1`. Set it to `2` and reload.
 
 If (3) shows nothing, either `DebugAuction` is off (see next section) or the bots are not choosing AH visits — check `RpgStatusProbWeight.GoAuctioneer` and the visit gates in the config.
+
+
 
 ## How the baseline works
 
@@ -235,13 +245,19 @@ In `env/etc/modules/playerbots_auction.conf`:
 AiPlayerbot.DebugAuction = 1
 ```
 
+
+
 That is the minimum. For the very verbose per-sale filter breakdown — every item scanned, every reason it was rejected — also set:
 
 ```bash
 AiPlayerbot.Auction.RunAnalysis = 1
 ```
 
+
+
 `RunAnalysis` is intended for tuning `MinSellQuality`, `MinSellValueCopper`, `SellFullStacksOnly` and the other sell filters. Do not leave it on in production.
+
+
 
 ### Step 2 — raise the logger level
 
@@ -252,6 +268,8 @@ Logger.playerbots=5,Console Playerbots
 Appender.Playerbots=2,5,0,Playerbots.log,w
 Appender.Console=1,5,0,"1 9 3 6 5 8"
 ```
+
+
 
 Level `5` means Debug. `Appender.Playerbots` writes to `logs/Playerbots.log`. The logger line sends Debug output to both the console and the file — remove `Console` if you want file-only. The `Appender.Console` line raises the console appender's own level to Debug so `Console` in the logger line actually produces output.
 
@@ -278,6 +296,8 @@ grep 'relist:' logs/Playerbots.log | tail -100
 grep 'Auction baseline snapshot changed' logs/Playerbots.log
 ```
 
+
+
 ### Reading the output
 
 **Startup markers.** Emitted once at boot when `Baseline.Mode = 2`:
@@ -287,6 +307,8 @@ grep 'Auction baseline snapshot changed' logs/Playerbots.log
 >> Loaded N auctioneer baseline categories
 ```
 
+
+
 If these are absent, either the mode is 1 or the tables are empty.
 
 **Live reload marker.** Emitted when the running server notices a fresh import without a restart:
@@ -294,6 +316,8 @@ If these are absent, either the mode is 1 or the tables are empty.
 ```
 >> Auction baseline snapshot changed (old -> new), reloading
 ```
+
+
 
 **The full AH visit sequence.** One bot, one visit, in order:
 
@@ -314,6 +338,8 @@ If these are absent, either the mode is 1 or the tables are empty.
 [AH-TRACE] <bot> dropping tracked bid auctionId=X (item no longer wanted)
 ```
 
+
+
 The `listed` line is the one to watch for a successful sale. `relist=yes` means the item came back from an expired auction and is being relisted; `relist=no` means a fresh listing from the bot's bags.
 
 The mailbox walk sequence (`walking to mailbox` → `mailbox reached, collecting`) indicates the bot temporarily left the auctioneer, collected returned items, and will walk back. If the sequence starts but never reaches `mailbox reached`, either the bot cannot path to a mailbox or the visit's 5-minute timeout fired before it got there.
@@ -328,6 +354,8 @@ The mailbox walk sequence (`walking to mailbox` → `mailbox reached, collecting
                          rejPotion=... rejVendorSold=... rejExcluded=... bags=[...]
 [AH-TRACE] <bot> candidate pool: [ITEM_ID qQ cC] [ITEM_ID qQ cC] ...
 ```
+
+
 
 The `sellpick` line is the single most useful diagnostic for "why is my bot not listing this item". Every rejection counter maps to one config setting:
 
@@ -356,6 +384,8 @@ The `candidate pool` line shows the top-5 highest-value items that survived ever
 grep '\[AH-TRACE\]' logs/Playerbots.log | head -5
 ```
 
+
+
 If empty, either `DebugAuction = 0` or `Auction.Enabled = 0` or the bots have no reason to visit. Check the visit gates: `AuctionVisit.MinLevel`, `MinBagFillPercent`, `MinGoldCopper`. If those are all satisfied and the bots still do not visit, check `RpgStatusProbWeight.GoAuctioneer` — a value of 0 disables the status entirely.
 
 **"My bots go to the AH but never list anything."**
@@ -363,6 +393,8 @@ If empty, either `DebugAuction = 0` or `Auction.Enabled = 0` or the bots have no
 ```bash
 grep 'sellpick:' logs/Playerbots.log | grep -v 'candidates=[1-9]' | tail -20
 ```
+
+
 
 That filters for `candidates=0`, meaning nothing survived the sell filters. Every `rej*` counter tells you which filter is the blocker. The most common ones on a fresh server are `rejValue` (items too cheap to list) and `rejUseful` (the bot wants to keep everything).
 
@@ -372,6 +404,8 @@ That filters for `candidates=0`, meaning nothing survived the sell filters. Ever
 grep 'relist:' logs/Playerbots.log | tail -50
 ```
 
+
+
 Watch for a bot that repeatedly shows `walking to mailbox` without ever reaching `mailbox reached`. That bot cannot path to any mailbox from its current position. The map may genuinely have no mailbox within reach, or the bot may be stuck against geometry.
 
 **"My bots are listing at absurd prices."**
@@ -379,6 +413,8 @@ Watch for a bot that repeatedly shows `walking to mailbox` without ever reaching
 ```bash
 grep 'listed \[' logs/Playerbots.log | tail -20
 ```
+
+
 
 Compare the `buyout=` values against what you expect for the item. If they are wildly high or low, either `Baseline.Mode = 1` (legacy pricing, no reference) or the baseline row for those items is thin. Verify with:
 
@@ -448,7 +484,7 @@ The tool uses two independent connections:
 - **`[world]`** — read-only. One query: `SELECT entry, class, Quality FROM item_template`. This is the source of the item filter (only items your realm actually has are imported) and the (class, quality) classification used by the category table.
 - **`[character]`** — read-write. Where the baseline tables live. The tool never touches `acore_world` beyond the one `item_template` read, and never touches `acore_playerbots` at all.
 
-They can be the same user or different users, on the same host or on different hosts. The config handles every combination through the inheritance mechanism described in section 5 above.
+They can be the same user or different users, on the same host or on different hosts. The config handles every combination through the inheritance mechanism described in section 5 above.[](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls)
 
 ------
 
@@ -465,6 +501,8 @@ They can be the same user or different users, on the same host or on different h
   ```sql
   SELECT snapshot FROM acore_characters.auctioneer_baseline_item LIMIT 1;
   ```
+
+  
 
 That is almost always enough to reproduce the problem locally.
 
