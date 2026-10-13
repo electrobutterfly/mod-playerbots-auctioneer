@@ -485,6 +485,35 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
         bool const debugAuction = sPlayerbotAIConfig.debugAuction;
         float const distToPos = bot->GetDistance(data->pos);
 
+        // Far-away bots cannot walk to a city auctioneer inside the visit
+        // budget: a bot deep in Tanaris is 4000+ yards from Orgrimmar. Do
+        // what a real player does -- take a flight path to the city -- and
+        // teleport the bot to the auctioneer's location once. The remaining
+        // approach is walked normally so the arrival looks natural.
+        //
+        // The distance threshold is 500 yards: on foot that is about 70
+        // seconds at run speed, comfortably inside the visit budget with
+        // margin for the sell queue and mail pass. Bots closer than that
+        // walk the whole way.
+        constexpr float kWalkDistance = 500.0f;
+        if (!data->cityTeleported && distToPos > kWalkDistance)
+        {
+            data->cityTeleported = true;
+            if (debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} teleporting to auctioneer city (dist={:.0f}yd)",
+                          bot->GetName(), distToPos);
+            }
+            bot->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TELEPORTED | AURA_INTERRUPT_FLAG_CHANGE_MAP);
+            bot->TeleportTo(data->pos.GetMapId(),
+                            data->pos.GetPositionX(),
+                            data->pos.GetPositionY(),
+                            data->pos.GetPositionZ(),
+                            data->pos.GetOrientation());
+            return false;
+        }
+
         // Mailbox walk sub-state. While set, the auctioneer-approach and
         // HELLO logic is skipped entirely so the bot can actually reach
         // the mailbox. The bot either completes the round trip or gives
@@ -1218,6 +1247,26 @@ bool NewRpgGoVendorAction::Execute(Event /*event*/)
     {
         bool const debugAuction = sPlayerbotAIConfig.debugAuction;
         float const distToPos = bot->GetDistance(data->pos);
+
+        // Same teleport-if-far as the AH visit. See the comment there.
+        constexpr float kWalkDistance = 500.0f;
+        if (!data->cityTeleported && distToPos > kWalkDistance)
+        {
+            data->cityTeleported = true;
+            if (debugAuction)
+            {
+                LOG_ERROR("playerbots",
+                          "[AH-TRACE] {} teleporting to vendor city (dist={:.0f}yd)",
+                          bot->GetName(), distToPos);
+            }
+            bot->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_TELEPORTED | AURA_INTERRUPT_FLAG_CHANGE_MAP);
+            bot->TeleportTo(data->pos.GetMapId(),
+                            data->pos.GetPositionX(),
+                            data->pos.GetPositionY(),
+                            data->pos.GetPositionZ(),
+                            data->pos.GetOrientation());
+            return false;
+        }
 
         if (debugAuction && distToPos < 30.0f)
         {

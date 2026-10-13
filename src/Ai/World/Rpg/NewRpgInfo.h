@@ -79,6 +79,13 @@ struct NewRpgInfo
         // While this is non-zero, the auctioneer-approach and HELLO logic
         // is bypassed so the walk can actually complete.
         uint8 mailboxWalkState{0};
+        // Set to true once the bot has been teleported to a city that hosts
+        // this visit's auctioneer. Far-away bots (3000+ yards across a
+        // continent) cannot walk to the auctioneer in the visit budget; the
+        // teleport is the equivalent of a real player taking a flight path
+        // to a city. Once teleported, the bot walks the remaining short
+        // distance normally.
+        bool cityTeleported{false};
     };
     // RPG_GO_VENDOR
     struct GoVendor
@@ -100,6 +107,9 @@ struct NewRpgInfo
         uint32 disenchantAttempts{0};
         uint32 disenchantSuccesses{0};
         bool disenchantDone{false};
+        // Set to true once the bot has been teleported to a city that hosts
+        // this visit's vendor. See the same field on GoAuctioneer.
+        bool cityTeleported{false};
     };
     // RPG_WANDER_NPC
     struct WanderNpc

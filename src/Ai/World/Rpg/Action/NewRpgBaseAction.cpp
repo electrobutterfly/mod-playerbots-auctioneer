@@ -1110,12 +1110,18 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
     // foot, comfortably inside the visit window even with pathfinding
     // detours. Raise this if your server runs predominantly epic mounts and
     // you want to allow longer walks.
-    WorldPosition const auctioneerPos(auctioneer.loc.GetMapId(),
+    
+    // Distance is no longer a gate. A bot far from the auctioneer will be
+    // teleported to the city on the first tick of the visit (see the
+    // cityTeleported field on GoAuctioneer). The gate remains only as a
+    // sanity check that an auctioneer actually exists on this map.
+    /* WorldPosition const auctioneerPos(auctioneer.loc.GetMapId(),
                                       auctioneer.loc.GetPositionX(),
                                       auctioneer.loc.GetPositionY(),
                                       auctioneer.loc.GetPositionZ());
     if (bot->GetExactDist(&auctioneerPos) > 800.0f)
-        return false;
+        return false; 
+        */
 
     // Bag pressure. "bag space" is a fullness percentage (0..100):
     // SmartDestroyItemAction treats >= 90 as "dangerously full".
@@ -1186,6 +1192,11 @@ bool NewRpgBaseAction::ShouldVisitVendor()
     TravelMgr::NpcLocation vendor;
     if (!sTravelMgr.SelectVendorByMap(bot, vendor))
         return false;
+        
+    // Distance is no longer a gate. A bot far from the vendor will be
+    // teleported to the city on the first tick of the visit (see the
+    // cityTeleported field on GoVendor).
+    /*
 
     WorldPosition const vendorPos(vendor.loc.GetMapId(),
                                   vendor.loc.GetPositionX(),
@@ -1193,6 +1204,7 @@ bool NewRpgBaseAction::ShouldVisitVendor()
                                   vendor.loc.GetPositionZ());
     if (bot->GetExactDist(&vendorPos) > 800.0f)
         return false;
+    */
 
     // Bag pressure.
     if (sPlayerbotAIConfig.vendorVisitMinBagFillPercent > 0)

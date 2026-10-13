@@ -74,8 +74,8 @@ public:
         {
             DBUpdaterInfo const info = {
                 "Playerbots",
-                BuiltInConfig::GetSourceDirectory() + "/modules/mod-playerbots",
-                BuiltInConfig::GetSourceDirectory() + "/modules/mod-playerbots/data/sql/playerbots/base/",
+                BuiltInConfig::GetSourceDirectory() + "/modules/mod-playerbots-auctioneer",
+                BuiltInConfig::GetSourceDirectory() + "/modules/mod-playerbots-auctioneer/data/sql/playerbots/base/",
                 "db_playerbot"
             };
 

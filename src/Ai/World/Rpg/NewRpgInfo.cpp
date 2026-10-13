@@ -34,6 +34,7 @@ void NewRpgInfo::ChangeToGoAuctioneer(WorldPosition pos, uint32 auctioneerEntry,
     data_go.lastReach = 0;
     data_go.mailChecked = false;
     data_go.sellQueueBuilt = false;
+    data_go.cityTeleported = false;
     data_go.pendingSells = pendingSells;
     data_go.returnedEntries.clear();
     data_go.buyAuctionId = buyAuctionId;
@@ -55,6 +56,7 @@ void NewRpgInfo::ChangeToGoVendor(WorldPosition pos, uint32 vendorEntry)
     data_go.disenchantAttempts = 0;
     data_go.disenchantSuccesses = 0;
     data_go.disenchantDone = false;
+    data_go.cityTeleported = false;
     data = data_go;
 }
 
