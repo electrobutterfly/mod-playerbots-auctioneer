@@ -1160,16 +1160,21 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
             uint32 buyout = 0;
             PlayerbotAuction::ComputeSellPrice(botAI, toSell, bid, buyout, isRelist);
 
+            // Duration is picked per-listing so a bot with several items
+            // queued in the same visit does not stamp all of them with the
+            // same expiry. In fixed mode this always returns the configured
+            // SellDurationMinutes.
+            uint32 const sellDuration = sPlayerbotAIConfig.PickAuctionSellDuration();
+
             PlayerbotAuction::SendSellItem(bot, auctioneer, toSell,
-                                            bid, buyout,
-                                            sPlayerbotAIConfig.auctionSellDurationMinutes);
+                                            bid, buyout, sellDuration);
 
             if (sPlayerbotAIConfig.debugAuction)
             {
                 LOG_ERROR("playerbots",
                           "[AH-TRACE] {} listed [{}] x{} bid={} buyout={} dur={} relist={}",
                           bot->GetName(), toSell->GetEntry(), toSell->GetCount(),
-                          bid, buyout, sPlayerbotAIConfig.auctionSellDurationMinutes,
+                          bid, buyout, sellDuration,
                           isRelist ? "yes" : "no");
             }
         }
