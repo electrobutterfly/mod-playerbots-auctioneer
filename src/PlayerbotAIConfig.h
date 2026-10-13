@@ -296,6 +296,19 @@ public:
     uint32 auctionSellUndercutPercentMin;
     uint32 auctionSellUndercutPercentMax;
     uint32 auctionSellDurationMinutes;
+
+    // Sell duration selection for auctions.
+    //   0 = fixed   (every listing uses auctionSellDurationMinutes)
+    //   1 = random  (every listing picks one entry from auctionSellDurationOptions)
+    uint32 auctionSellDurationMode;
+    std::vector<uint32> auctionSellDurationOptions;
+
+    // Returns the duration (in minutes) to use for the next listing.
+    // Fixed mode returns auctionSellDurationMinutes; random mode picks one
+    // of auctionSellDurationOptions at random. The caller is expected to
+    // invoke this once per listing so a bot that queues several items in
+    // the same visit does not stamp them all with the same expiry.
+    uint32 PickAuctionSellDuration() const;
     uint32 auctionMinSellValueCopper;
     uint32 auctionMinSellQuality;
     uint32 auctionKeepHealthPotions;

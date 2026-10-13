@@ -1325,9 +1325,14 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
             TravelMgr::NpcLocation vendor;
             if (sTravelMgr.SelectVendorByMap(bot, vendor))
             {
+                // Same destination offset as the auctioneer above. A vendor
+                // teleported onto by stuck-recovery should land next to the
+                // NPC, not inside them.
+                float const offsetAngle = frand(0.0f, 2.0f * static_cast<float>(M_PI));
+                float const offsetRadius = frand(2.0f, 4.5f);
                 WorldPosition pos(vendor.loc.GetMapId(),
-                                  vendor.loc.GetPositionX(),
-                                  vendor.loc.GetPositionY(),
+                                  vendor.loc.GetPositionX() + std::cos(offsetAngle) * offsetRadius,
+                                  vendor.loc.GetPositionY() + std::sin(offsetAngle) * offsetRadius,
                                   vendor.loc.GetPositionZ());
 
                 botAI->rpgInfo.ChangeToGoVendor(pos, vendor.entry);
@@ -1341,9 +1346,21 @@ bool NewRpgBaseAction::RandomChangeStatus(std::vector<NewRpgStatus> candidateSta
             TravelMgr::NpcLocation auctioneer;
             if (sTravelMgr.SelectAuctioneerByMap(bot, auctioneer))
             {
+                // Offset the destination slightly so that a bot whose path
+                // through the AH doorway fails and falls back to the
+                // stuck-recovery teleport in MoveFarTo does not end up
+                // standing on top of the auctioneer. Instead, the bot lands
+                // 3-5 yards away -- still inside the building, still inside
+                // the interaction radius (INTERACTION_DISTANCE = 5.55 yards),
+                // but visually distinct. Bots that succeed at walking in
+                // normally also converge on this offset destination, so the
+                // final position is consistent regardless of how the bot
+                // got there.
+                float const offsetAngle = frand(0.0f, 2.0f * static_cast<float>(M_PI));
+                float const offsetRadius = frand(2.0f, 4.5f);
                 WorldPosition pos(auctioneer.loc.GetMapId(),
-                                  auctioneer.loc.GetPositionX(),
-                                  auctioneer.loc.GetPositionY(),
+                                  auctioneer.loc.GetPositionX() + std::cos(offsetAngle) * offsetRadius,
+                                  auctioneer.loc.GetPositionY() + std::sin(offsetAngle) * offsetRadius,
                                   auctioneer.loc.GetPositionZ());
 
                 // Remove the pre-scan

@@ -265,14 +265,49 @@ Playerbots.VendorVisit.MaxMinutes = 90
 # Default: 1 (enabled)
 Playerbots.Auction.EnableSelling = 1
 
-# Duration to list auctions for, in minutes.
+# Duration to list auctions for, in minutes, when SellDurationMode = 0.
 #
-# Only 720 (12h), 1440 (24h), and 2880 (48h) are accepted by the auction
-# house handler. Values outside this set are rejected at startup and the
+# Only 720 (12h), 1440 (24h), and 2880 (48h) are accepted by the core
+# auction house handler. Any other value is rejected at startup and the
 # config falls back to 720.
+#
+# Ignored when SellDurationMode = 1.
 #
 # Default: 720
 Playerbots.Auction.SellDurationMinutes = 720
+
+# Sell duration selection.
+#
+#   0 = fixed   Every listing uses SellDurationMinutes.
+#   1 = random  Every listing picks one entry from SellDurationOptions at
+#               random. The choice is made per listing, not per visit, so a
+#               bot that queues several items will typically end up with a
+#               mix of 12h, 24h, and 48h auctions. This mimics how real
+#               players pick a duration based on the item's value and how
+#               quickly they expect it to sell: cheap consumables go up
+#               for 12h, valuable items for 48h.
+#
+# Values other than 0 or 1 fall back to 0.
+#
+# Default: 0 (fixed, all listings use SellDurationMinutes)
+Playerbots.Auction.SellDurationMode = 0
+
+# Comma-separated list of durations (in minutes) that random mode picks
+# from. Only 720, 1440, and 2880 are valid; anything else is dropped at
+# startup with an error message. An empty list or a list with no valid
+# entries falls back to "720" so random mode never produces a value the
+# core would reject.
+#
+# Examples:
+#   "720,1440,2880"   mix of 12h, 24h, and 48h listings (default)
+#   "720,1440"        12h and 24h only
+#   "720"             all 12h, equivalent to fixed mode
+#   "1440,2880"       24h and 48h only
+#
+# Ignored when SellDurationMode = 0.
+#
+# Default: "720,1440,2880"
+Playerbots.Auction.SellDurationOptions = "720,1440,2880"
 
 # Cap on how many live auctions a single bot may have at once.
 #

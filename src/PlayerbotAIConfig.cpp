@@ -13,6 +13,7 @@
 #include "PlayerbotFactory.h"
 #include "PlayerbotGuildMgr.h"
 #include "Playerbots.h"
+#include "Random.h"
 #include "RandomItemMgr.h"
 #include "RandomPlayerbotFactory.h"
 #include "RandomPlayerbotMgr.h"
@@ -439,6 +440,60 @@ bool PlayerbotAIConfig::Initialize()
         LOG_ERROR("playerbots",
                   "Playerbots.Auction.SellDurationMinutes must be 720, 1440, or 2880. Falling back to 720.");
         auctionSellDurationMinutes = 720;
+    }
+
+    // Sell duration mode: 0 = fixed, 1 = random-per-listing. Anything else
+    // is silently coerced to fixed so a typo in the conf does not produce
+    // unpredictable behaviour.
+    auctionSellDurationMode =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.SellDurationMode", 0);
+    if (auctionSellDurationMode > 1)
+        auctionSellDurationMode = 0;
+
+    // Random-mode duration pool. Only 720, 1440, and 2880 are accepted by
+    // the core auction house handler; anything else in the list is dropped
+    // with a warning at startup. Empty list falls back to {720} so random
+    // mode never produces a value the server would reject.
+    auctionSellDurationOptions.clear();
+    {
+        std::string const raw = sConfigMgr->GetOption<std::string>(
+            "Playerbots.Auction.SellDurationOptions", "720,1440,2880");
+
+        std::stringstream ss(raw);
+        std::string token;
+        while (std::getline(ss, token, ','))
+        {
+            token.erase(0, token.find_first_not_of(" \t"));
+            token.erase(token.find_last_not_of(" \t") + 1);
+            if (token.empty())
+                continue;
+
+            try
+            {
+                uint32 const v = static_cast<uint32>(std::stoul(token));
+                if (v == 720 || v == 1440 || v == 2880)
+                    auctionSellDurationOptions.push_back(v);
+                else
+                    LOG_ERROR("playerbots",
+                              "Playerbots.Auction.SellDurationOptions value {} is not "
+                              "720, 1440, or 2880; ignored.",
+                              v);
+            }
+            catch (std::exception const&)
+            {
+                LOG_ERROR("playerbots",
+                          "Playerbots.Auction.SellDurationOptions: could not parse '{}'; ignored.",
+                          token);
+            }
+        }
+
+        if (auctionSellDurationOptions.empty())
+        {
+            LOG_ERROR("playerbots",
+                      "Playerbots.Auction.SellDurationOptions is empty or has no "
+                      "valid entries; random mode will use 720 only.");
+            auctionSellDurationOptions.push_back(720);
+        }
     }
 
     auctionMinSellValueCopper =
@@ -1045,6 +1100,17 @@ bool PlayerbotAIConfig::Initialize()
     LOG_INFO("server.loading", "---------------------------------------");
 
     return true;
+}
+
+uint32 PlayerbotAIConfig::PickAuctionSellDuration() const
+{
+    if (auctionSellDurationMode == 1 && !auctionSellDurationOptions.empty())
+    {
+        uint32 const idx =
+            urand(0u, static_cast<uint32>(auctionSellDurationOptions.size() - 1));
+        return auctionSellDurationOptions[idx];
+    }
+    return auctionSellDurationMinutes;
 }
 
 // Loads Playerbots.LevelBrackets.* and Playerbots.ResetBotLevel.* (see RandomBotLevelMgr). Also
