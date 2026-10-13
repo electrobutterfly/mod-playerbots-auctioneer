@@ -364,9 +364,9 @@ They can be the same user or different users, on the same host or on different h
 
 ------
 
-## Contributing
+## Contributing and Troubleshooting
 
-[Issues](https://github.com/electrobutterfly/mod-playerbots-auctioneer/issues) and [pull requests](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls) are welcome. When filing a bug against the auctioneer specifically, please attach the diagnostic bundle described in [TROUBLESHOOTING](https://troubleshooting.md/).
+[Issues](https://github.com/electrobutterfly/mod-playerbots-auctioneer/issues) and [pull requests](https://github.com/electrobutterfly/mod-playerbots-auctioneer/pulls) are welcome. When filing a bug against the auctioneer specifically, please attach the diagnostic bundle described in [TROUBLESHOOTING](TROUBLESHOOTING.md).
 
 ------
 
