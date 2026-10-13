@@ -8,4 +8,4 @@
 void AddPlayerbotsScripts();
 
 // Add all
-void Addmod_playerbotsScripts() { AddPlayerbotsScripts(); }
+void Addmod_playerbots_auctioneerScripts() { AddPlayerbotsScripts(); }

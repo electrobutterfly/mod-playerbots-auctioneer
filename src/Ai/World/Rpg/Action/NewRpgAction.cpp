@@ -348,6 +348,19 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             // Give up if the walk takes too long (unreachable destination).
             if (info.HasStatusPersisted(statusGoAuctioneerDuration))
             {
+                if (sPlayerbotAIConfig.debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} AH visit TIMEOUT: elapsed={}ms lastReach={} "
+                              "queueBuilt={} sellsLeft={} mailDone={} bidsDone={} buyDone={}",
+                              bot->GetName(), GetMSTimeDiffToNow(info.startT),
+                              data.lastReach,
+                              data.sellQueueBuilt ? 1 : 0,
+                              data.pendingSells.size(),
+                              data.mailChecked ? 1 : 0,
+                              data.trackedBidsDone ? 1 : 0,
+                              data.buyDone ? 1 : 0);
+                }
                 info.ChangeToIdle();
                 return true;
             }
@@ -633,6 +646,17 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
         if (!data->lastReach)
         {
             data->lastReach = getMSTime();
+            // Reset the status clock to the moment of arrival. The AH visit
+            // budget (statusGoAuctioneerDuration) is measured by
+            // NewRpgStatusUpdateAction from rpgInfo.startT, which is set when
+            // the status is selected -- i.e. before the walk to the auctioneer.
+            // Without this reset, a long walk consumes the entire visit budget
+            // and the sell pass never runs: the bot reaches the auctioneer,
+            // builds its sell queue, and the 5-minute timeout fires before the
+            // first sell step. Resetting startT here gives the bot its full
+            // visit window from the moment it is actually standing at the
+            // auctioneer, which is what the timeout was meant to bound.
+            botAI->rpgInfo.startT = getMSTime();
 
             if (debugAuction)
             {
@@ -1260,6 +1284,8 @@ bool NewRpgGoVendorAction::Execute(Event /*event*/)
         if (!data->lastReach)
         {
             data->lastReach = getMSTime();
+            // Same status-clock reset as the AH visit. See the comment there.
+            botAI->rpgInfo.startT = getMSTime();
 
             // Per-bot cooldown, so the bot doesn't immediately re-qualify
             // for another vendor visit once this one ends.
