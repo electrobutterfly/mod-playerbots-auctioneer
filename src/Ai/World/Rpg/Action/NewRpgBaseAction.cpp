@@ -1094,8 +1094,27 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
         return false;
 
     // Must have a reachable auctioneer on this map.
+    //
+    // "Reachable" means two things: an auctioneer exists on this map, and it
+    // is close enough that the walk will complete inside the AH visit status
+    // timeout (statusGoAuctioneerDuration, 5 minutes). A bot deep in Tanaris
+    // or Feralas that selects the Orgrimmar auctioneer cannot finish the walk
+    // in 5 minutes and will spend an entire RPG cycle walking to nowhere.
+    // The visit is then abandoned with lastReach=0, which pollutes the
+    // interruption statistics and wastes a whole cycle.
     TravelMgr::NpcLocation auctioneer;
     if (!sTravelMgr.SelectAuctioneerByMap(bot, auctioneer))
+        return false;
+
+    // 800 yards is roughly 70 seconds on a 100% mount and about 2 minutes on
+    // foot, comfortably inside the visit window even with pathfinding
+    // detours. Raise this if your server runs predominantly epic mounts and
+    // you want to allow longer walks.
+    WorldPosition const auctioneerPos(auctioneer.loc.GetMapId(),
+                                      auctioneer.loc.GetPositionX(),
+                                      auctioneer.loc.GetPositionY(),
+                                      auctioneer.loc.GetPositionZ());
+    if (bot->GetExactDist(&auctioneerPos) > 800.0f)
         return false;
 
     // Bag pressure. "bag space" is a fullness percentage (0..100):
@@ -1161,9 +1180,18 @@ bool NewRpgBaseAction::ShouldVisitVendor()
     if (bot->GetLevel() < (uint32)sPlayerbotAIConfig.vendorVisitMinLevel)
         return false;
 
-    // Must have a reachable vendor on this map.
+    // Must have a reachable vendor on this map. Same distance gate as the
+    // auctioneer above: a vendor that is too far to reach in one RPG cycle
+    // is a vendor the bot will never actually sell to.
     TravelMgr::NpcLocation vendor;
     if (!sTravelMgr.SelectVendorByMap(bot, vendor))
+        return false;
+
+    WorldPosition const vendorPos(vendor.loc.GetMapId(),
+                                  vendor.loc.GetPositionX(),
+                                  vendor.loc.GetPositionY(),
+                                  vendor.loc.GetPositionZ());
+    if (bot->GetExactDist(&vendorPos) > 800.0f)
         return false;
 
     // Bag pressure.

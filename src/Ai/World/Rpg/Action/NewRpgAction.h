@@ -68,10 +68,17 @@ protected:
     const int32 statusDoQuestDuration = 30 * MINUTE  * IN_MILLISECONDS ;
     const int32 statusOutDoorPvPDuration = HOUR * IN_MILLISECONDS ;
     const int32 statusDoGatherDuration = 15 * MINUTE * IN_MILLISECONDS;
-    // Auctioneer subsystem
-    const int32 statusGoAuctioneerDuration = 5 * MINUTE  * IN_MILLISECONDS ;
+    // Add Auctioneer
+    // Wall-clock budget for one AH visit. Must be generous enough to
+    // survive the BotActiveAlone rotation, which pauses half the bot
+    // population every BotActiveAloneDurationSeconds (default 300s). A
+    // bot that is frozen for two rotations can lose 10 minutes without
+    // actually moving. 15 minutes gives 3 rotations of margin while still
+    // bailing out on genuinely unreachable auctioneers.
+    const int32 statusGoAuctioneerDuration = 15 * MINUTE  * IN_MILLISECONDS ;
     // Add Vendor
-    const int32 statusGoVendorDuration = 3 * MINUTE  * IN_MILLISECONDS ;
+    // Same reasoning: survives at least one full activity rotation.
+    const int32 statusGoVendorDuration = 8 * MINUTE  * IN_MILLISECONDS ;
 };
 
 class NewRpgGoGrindAction : public NewRpgBaseAction

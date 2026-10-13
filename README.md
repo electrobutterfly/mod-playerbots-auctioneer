@@ -6,8 +6,9 @@
     <a href="https://github.com/electrobutterfly/mod-playerbots-auctioneer">Playerbots-Auctioneer</a>
 </p>
 <div align="center">
-  <img src="banner.jpg" alt="Playerbots Banner" width="700px">
+  <img src="assets/banner.jpg" alt="Playerbots Banner" width="700px">
 </div>
+
 
 # Playerbots-Auctioneer
 
@@ -377,6 +378,8 @@ The baseline data format and the price-band approach are adapted from [mod-aucti
 The seller and buyer pricing comparison logic is built against [mod-ah-bot-plus](https://github.com/NathanHandley/mod-ah-bot-plus), which provides the reference `CalculateItemValue` implementation that this subsystem benchmarks against.
 
 The auction-house subsystem builds on the movement, chat, and personality infrastructure of [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots), without which none of this would be possible.
+
+[Here](AUTHORS-OLD.md) you will find all the authors involved in the development of the original module.
 
 ------
 
