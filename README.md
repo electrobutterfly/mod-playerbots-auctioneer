@@ -55,6 +55,35 @@ mod-ah-bot-plus is installed as a dependency because the auctioneer's buyer and 
 
 The AH bot GUIDs from mod-ah-bot-plus are used only to classify sellers for the buyer-preference logic (`Playerbots.Auction.AhBotGUIDs`), so the bots know the difference between "another playerbot" and "the dedicated AH bot". If you are not running mod-ah-bot-plus, leave that config key empty and the classification falls back to `Unknown`.
 
+### Bag progression
+
+Bots grow into bags the way real players do: they start with the containers the core grants at character creation and then earn the rest through loot, vendors, the auction house, and their own professions. The behavior is controlled by `Playerbots.RandomBotStarterBagMode`, which lives in `playerbots_auction.conf` (not `playerbots.conf`) so that all overrides to the upstream mod-playerbots defaults sit in one diffable file:
+
+- `1` — historical. Every randomize grants a full set of high-quality bags, regardless of the bot's level or progression. Bots never need to find, buy or craft bags.
+- `2` — starter-kit only. A bot keeps the containers its class was created with — the 16-slot backpack every character has, plus whatever the core wrote from the `CharStartOutfitEntry` (four 12-slot bags for Death Knights, a 6-slot quiver for Hunters). Any further bag space must be earned.
+
+Under either mode, three independent subsystems drive bag growth:
+
+**Buy container (vendor and AH).** After a vendor visit's sell and disenchant passes have run, and after an AH visit's sell, mail and bid passes have finished, the bot searches the vendor's stock (or the AH buyout listings) for a bag, quiver or ammo pouch larger than the smallest equipped container, and buys the largest it can afford. Cheapest-price breaks ties within the same size. The action only runs once per visit and skips entirely if the bot cannot pay.
+
+**Craft bags.** Every profession recipe a bot knows that produces a standard bag, quiver or ammo pouch is a crafting candidate at the same priority as useful-item crafts. Tailoring supplies the standard bags (Linen through Frostweave, plus the profession specialty bags); Leatherworking supplies the quivers and ammo pouches. Bag size varies with the bot's skill level, so a fresh server sees 6- and 8-slot bags early and 16-, 18- and 20-slot bags later. Recipes unlock at fixed skill thresholds, so the population's bag supply is a function of its profession progression rather than a fixed grant.
+
+**Equip on loot.** A container in a bot's bags that is strictly larger than its smallest equipped bag (or any container if a bag slot is empty) is classified as a gear upgrade. `EquipAction` swaps it into the appropriate slot and the displaced container returns to bags, where the sell pipeline eventually picks it up. Hunters can upgrade their quivers, and pouches are treated the same as bags for them. Bag slots fill left-to-right starting at slot 19; on equal sizes, the first such slot wins, so replacements also march left-to-right.
+
+Every bag equip, purchase and swap emits a `[BAG]` line to the log. See the *Troubleshooting* document for the log format and grep recipes.
+
+### Altbot auction-house block
+
+`Playerbots.Auction.AllowAltBots` (default `0`) controls whether altbots and addclass bots are allowed to visit an auctioneer under automation.
+
+"Altbot" in this context means a bot whose current master is a real player or a selfbot, and which is not a randombot and not itself a selfbot. That covers characters on the player's own accounts and bots drawn from the AddClass account pool. It does **not** cover randombots that happen to be in a player's group — those continue to use the auction house normally.
+
+When `0`, such bots are excluded from the AH automation pipeline entirely. They still visit vendors for selling, repair, disenchanting and bag purchases. Only the auction house is blocked.
+
+**The reason this defaults to `0` is abuse prevention.** A player can log in a batch of altbots, leave them unattended, and let them farm the auction house on the player's behalf — earning gold, cornering markets, and competing with other players, all without any manual input. That undercuts the "no unattended automation for player accounts" principle the rest of the module is built around. Setting the key to `0` closes that avenue at the automation level, while still allowing a player who *is* at the keyboard to use the AH through their altbots by flipping the key to `1` on the server, or by acting as the altbot's master in a selfbot capacity. Randombots are unaffected by this key.
+
+Server operators who are comfortable with the tradeoff can set this to `1`.
+
 ### Bots sometimes seem to "fly or go through wall"
 
 That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots).
@@ -321,6 +350,8 @@ The full configuration file lives at `modules/mod-playerbots-auctioneer/conf/pla
 | `Baseline.CraftArbitrageEnabled`              | Reserve reagents for profitable crafts (off by default) |
 | `RpgStatusProbWeight.GoVendor`                | How often bots pick a vendor visit                      |
 | `VendorVisit.MinBagFillPercent`               | Bag pressure that triggers a vendor visit               |
+| `RandomBotStarterBagMode`                     | 1 = grant full bags on randomize, 2 = start with class defaults and earn the rest |
+| `Auction.AllowAltBots`                        | Allow altbots and addclass bots to use the AH           |
 
 ### Modes explained
 

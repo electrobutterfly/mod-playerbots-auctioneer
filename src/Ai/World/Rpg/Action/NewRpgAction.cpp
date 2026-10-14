@@ -314,7 +314,7 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             auto& data = std::get<NewRpgInfo::GoVendor>(info.data);
             assert(data.pos != WorldPosition());
 
-            if (data.lastReach && data.vendorSellDone && data.disenchantDone)
+            if (data.lastReach && data.vendorSellDone && data.disenchantDone && data.buyContainerDone)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -340,7 +340,8 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             bool const bidsComplete = data.trackedBidsDone;
             bool const mailComplete = data.mailChecked;
             bool const queueComplete = data.sellQueueBuilt;
-            if (data.lastReach && queueComplete && sellComplete && buyComplete && bidsComplete && mailComplete)
+            bool const containerComplete = data.buyContainerDone;
+            if (data.lastReach && queueComplete && sellComplete && buyComplete && bidsComplete && mailComplete && containerComplete)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -1229,6 +1230,15 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                           data->buyMaxWilling);
             }
         }
+        else if (!data->buyContainerDone)
+        {
+            // Buy-container pass. Runs once per visit, after every other
+            // pass has completed. Buyout auctions only; see
+            // BuyContainerAction for the reasoning.
+            data->buyContainerDone = true;
+            botAI->DoSpecificAction("buy container", Event("rpg action", "ah"), true);
+            return false;
+        }
 
         return false;
     }
@@ -1418,7 +1428,18 @@ bool NewRpgGoVendorAction::Execute(Event /*event*/)
             return false;
         }
 
-        // Both passes are done. The status update will transition us out on
+        // Buy-container pass. Runs once per visit, after sell and disenchant
+        // so the bot has the most money available for the purchase. Standard
+        // bags, quivers and ammo pouches are all eligible; see
+        // BuyContainerAction for the details.
+        if (!data->buyContainerDone)
+        {
+            data->buyContainerDone = true;
+            botAI->DoSpecificAction("buy container", Event("rpg action", "vendor"), true);
+            return false;
+        }
+
+        // All passes are done. The status update will transition us out on
         // the next tick.
         return false;
     }

@@ -71,6 +71,11 @@ struct NewRpgInfo
         std::vector<uint32> protectedReagentIds;
         bool protectedReagentsComputed{false};
 
+        // Buy-container pass flag. Set to true once the buy-container action
+        // has been invoked for this visit. See the matching comment on
+        // GoVendor.
+        bool buyContainerDone{false};
+
         // Mail-collection sub-state. When the bot needs to walk away from
         // the auctioneer to reach a mailbox:
         //   0 = not walking
@@ -107,6 +112,11 @@ struct NewRpgInfo
         uint32 disenchantAttempts{0};
         uint32 disenchantSuccesses{0};
         bool disenchantDone{false};
+        // Buy-container pass flag. Set to true once the buy-container action
+        // has been invoked for this visit. The action only tries once per
+        // visit; a bot that cannot afford a bag skips the pass rather than
+        // looping on it.
+        bool buyContainerDone{false};
         // Set to true once the bot has been teleported to a city that hosts
         // this visit's vendor. See the same field on GoAuctioneer.
         bool cityTeleported{false};
