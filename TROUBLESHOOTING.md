@@ -468,3 +468,9 @@ Playerbots.Auction.RunAnalysis = 0
 
 
 and revert the `Logger.playerbots` level in `worldserver.conf` back to `4` if you had raised it. `.reload config` picks up both. The log file will no longer receive new `[AH-TRACE]` lines but will keep whatever it already contains. The `[BAG]` lines stop when the `playerbots` logger drops back to level 4; they are not gated by `DebugAuction`.
+
+------
+
+Copyright (C) 2026, Klaus Simon aka [Electrobutterfly](https://github.com/electrobutterfly)
+
+<img src="https://electrobutterfly.com/images/logo-small-github.png" alt="Logo" style="float:left; margin-right:10px; width:150px;">
