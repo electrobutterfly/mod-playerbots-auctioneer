@@ -14,6 +14,7 @@
 #include "BattleGroundTactics.h"
 #include "BotStateActions.h"
 #include "BuyAction.h"
+#include "BuyContainerAction.h"
 #include "CancelChannelAction.h"
 #include "CastCustomSpellAction.h"
 #include "ChangeStrategyAction.h"
@@ -282,6 +283,7 @@ public:
         creators["new rpg go auctioneer"] = &ActionContext::new_rpg_go_auctioneer;
         // Add Vendor
         creators["new rpg go vendor"] = &ActionContext::new_rpg_go_vendor;
+        creators["buy container"] = &ActionContext::buy_container;
         creators["wait for attack keep safe distance"] = &ActionContext::wait_for_attack_keep_safe_distance;
     }
 
@@ -491,6 +493,7 @@ private:
     static Action* new_rpg_go_auctioneer(PlayerbotAI* botAI) { return new NewRpgGoAuctioneerAction(botAI); }
     // Add Vendor
     static Action* new_rpg_go_vendor(PlayerbotAI* botAI) { return new NewRpgGoVendorAction(botAI); }
+    static Action* buy_container(PlayerbotAI* botAI) { return new BuyContainerAction(botAI); }
     static Action* wait_for_attack_keep_safe_distance(PlayerbotAI* botAI) { return new WaitForAttackKeepSafeDistanceAction(botAI); }
 };
 

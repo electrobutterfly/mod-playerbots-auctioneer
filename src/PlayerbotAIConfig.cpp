@@ -426,6 +426,8 @@ bool PlayerbotAIConfig::Initialize()
     // Auction automation (see playerbots_auction.conf)
     auctionEnabled = sConfigMgr->GetOption<bool>("Playerbots.Auction.Enabled", false);
 
+    auctionAllowAltBots = sConfigMgr->GetOption<bool>("Playerbots.Auction.AllowAltBots", false);
+
     auctionVisitMinMinutes = sConfigMgr->GetOption<uint32>("Playerbots.Auction.VisitMinMinutes", 60);
     auctionVisitMaxMinutes = sConfigMgr->GetOption<uint32>("Playerbots.Auction.VisitMaxMinutes", 240);
     if (auctionVisitMaxMinutes < auctionVisitMinMinutes)

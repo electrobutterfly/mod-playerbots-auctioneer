@@ -31,7 +31,13 @@ void EquipAction::EquipItems(ItemIds ids)
     }
 }
 
-// Return bagslot with smalest bag.
+// Return the bag slot the next container should be equipped into.
+//
+// Rule: first empty slot wins, scanned 19 -> 22 so bags fill left-to-right.
+// If all four slots are occupied, return the smallest bag; on equal sizes
+// the FIRST such slot wins, so replacement also scans left-to-right. That
+// matches the visible expectation that slot 19 is filled first and replaced
+// first, and makes the two branches consistent with each other.
 uint8 EquipAction::GetSmallestBagSlot()
 {
     int8 curBag = 0;
@@ -41,7 +47,8 @@ uint8 EquipAction::GetSmallestBagSlot()
         Bag const* const pBag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bag);
         if (pBag)
         {
-            if (curBag > 0 && curSlots < pBag->GetBagSize())
+            // <= so equal-sized bags do not displace the earlier slot.
+            if (curBag > 0 && curSlots <= pBag->GetBagSize())
                 continue;
 
             curBag = bag;

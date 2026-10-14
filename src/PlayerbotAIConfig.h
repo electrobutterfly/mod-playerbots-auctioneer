@@ -298,6 +298,12 @@ public:
     uint32 auctionVisitMinMinutes;
     uint32 auctionVisitMaxMinutes;
 
+    // When false, altbots and addclass bots (any bot whose IsAltBot()
+    // returns true) are excluded from the AH automation pipeline. They
+    // still visit vendors. See playerbots_auction.conf for the full
+    // description and the reasoning behind the default.
+    bool auctionAllowAltBots;
+
     bool auctionEnableSelling;
     uint32 auctionSellUndercutPercentMin;
     uint32 auctionSellUndercutPercentMax;

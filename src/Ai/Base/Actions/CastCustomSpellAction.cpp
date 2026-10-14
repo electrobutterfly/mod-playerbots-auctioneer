@@ -310,21 +310,36 @@ bool CraftRandomItemAction::AcceptSpell(SpellInfo const* spellInfo)
 
 uint32 CraftRandomItemAction::GetSpellPriority(SpellInfo const* spellInfo)
 {
-    if (spellInfo->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
+    // AcceptSpell already filtered on Effect == SPELL_EFFECT_CREATE_ITEM, so the
+    // historical "!= SPELL_EFFECT_CREATE_ITEM" guard was dead code and the
+    // useful-item tier below never ran. Corrected here.
+    //
+    // The bag-like branch is new. Any container recipe the bot knows is a
+    // craft candidate at any size, regardless of profession: bags from
+    // Tailoring, quivers and ammo pouches from Leatherworking, etc. Low
+    // skill bots produce 6- and 8-slot, mid skill produce 10- and 12-slot,
+    // maxed bots produce 16-, 18- and 24-slot. Recipes are gated by the
+    // bot's own profession skill, so population-level variety is automatic.
+    //
+    // Bag-like crafts sit at the same tier as useful-item crafts, not above
+    // them. They join the pool; they do not replace it. A bot with a bag
+    // recipe and three useful-item recipes picks uniformly among the top
+    // 25 % of the combined pool.
+    uint32 newItemId = spellInfo->Effects[EFFECT_0].ItemType;
+    if (newItemId)
     {
-        uint32 newItemId = spellInfo->Effects[EFFECT_0].ItemType;
-        if (newItemId)
-        {
-            ItemUsage usage = AI_VALUE2(ItemUsage, "item usage", newItemId);
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(newItemId);
+        if (proto && proto->Class == ITEM_CLASS_CONTAINER && proto->SubClass == ITEM_SUBCLASS_CONTAINER)
+            return 10;
 
-            if (usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_AMMO ||
-                usage == ITEM_USAGE_QUEST || usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_USE)
-                return 10;
-        }
-
-        if (ItemUsageValue::SpellGivesSkillUp(spellInfo->Id, bot))
-            return 8;
+        ItemUsage usage = AI_VALUE2(ItemUsage, "item usage", newItemId);
+        if (usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_AMMO ||
+            usage == ITEM_USAGE_QUEST || usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_USE)
+            return 10;
     }
+
+    if (ItemUsageValue::SpellGivesSkillUp(spellInfo->Id, bot))
+        return 8;
 
     return 1;
 }

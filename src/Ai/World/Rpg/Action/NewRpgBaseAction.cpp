@@ -1086,6 +1086,12 @@ bool NewRpgBaseAction::ShouldVisitAuctioneer()
     if (!sPlayerbotAIConfig.auctionEnabled)
         return false;
 
+    // Altbot block. See playerbots_auction.conf for the reasoning. Only
+    // the AH is gated here; ShouldVisitVendor() is deliberately left
+    // alone so altbots can still sell junk and repair.
+    if (!sPlayerbotAIConfig.auctionAllowAltBots && botAI->IsAltBot())
+        return false;
+
     // Per-bot cooldown: don't return to the AH more often than the configured window.
     if (botAI->nextAuctionVisitTime != 0 && time(nullptr) < botAI->nextAuctionVisitTime)
         return false;

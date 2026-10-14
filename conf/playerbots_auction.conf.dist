@@ -95,7 +95,31 @@
 # features in mod-ah-bot-plus can be independently disabled.
 #
 # Default: 0 (disabled, opt-in)
-Playerbots.Auction.Enabled = 0
+Playerbots.Auction.Enabled = 1
+
+# Allow altbots and addclass bots to visit an auctioneer under automation.
+#
+# "Altbot" here means a bot whose current master is a real player or a
+# selfbot, and which is not a randombot and not itself a selfbot. That
+# covers characters on the player's own accounts and bots drawn from the
+# AddClass account pool. It does NOT cover randombots that happen to be
+# in a player's group -- those continue to use the auction house normally.
+#
+# When 0, such bots are excluded from the AH automation pipeline. They
+# still visit vendors for selling and repair; only the auction house is
+# blocked. The per-bot cooldown and all tracked-bid logic remain in place
+# so a bot that is blocked this session resumes cleanly when the setting
+# is turned back on.
+#
+# The reason this defaults to 0 is abuse prevention: a player can log in
+# a batch of altbots, leave them unattended, and let them farm the
+# auction house on the player's behalf. That undercuts the "no
+# unattended automation for player accounts" principle the rest of the
+# module is built around. Randombots are unaffected. Server operators
+# who are comfortable with the tradeoff can set this to 1.
+#
+# Default: 0 (altbots do not visit the auctioneer!!!)
+Playerbots.Auction.AllowAltBots = 0
 
 # Enables the GM debug chat commands:
 #   whisper the bot with "ah bid <auctionId> <priceCopper>"
