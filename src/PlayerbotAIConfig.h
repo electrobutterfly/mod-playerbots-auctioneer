@@ -167,6 +167,12 @@ public:
     int32 RandomGearScoreLimit;
     bool PreferClassArmorType;
     bool PreferredSpecWeapons;
+
+    // Randombot starter bag mode. See playerbots.conf for the full description.
+    //   1 = bots are granted a full bag set during randomization (historical)
+    //   2 = bots keep only the containers granted at character creation and must
+    //       earn further bags through gameplay
+    uint32 RandomBotStarterBagMode;
     float RandomBotMinLevelChance, RandomBotMaxLevelChance;
     float RandomBotRpgChance;
     uint32 MinRandomBots, MaxRandomBots;

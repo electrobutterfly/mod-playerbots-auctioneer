@@ -89,10 +89,34 @@ void EquipAction::EquipItem(Item* item)
 
         if (newBagSlot > 0)
         {
+            // Capture the bag being displaced before the swap. After SwapItem
+            // the old bag has moved back into the bot's bags at the source
+            // position and this slot holds the new bag instead, so the old
+            // one cannot be inspected afterwards.
+            Item* displacedBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, newBagSlot);
+            uint32 displacedId = 0;
+            uint32 displacedSlots = 0;
+            if (displacedBag)
+            {
+                displacedId = displacedBag->GetTemplate()->ItemId;
+                displacedSlots = displacedBag->GetTemplate()->ContainerSlots;
+            }
+
             uint16 src = ((bagIndex << 8) | slot);
             uint16 dst = ((INVENTORY_SLOT_BAG_0 << 8) | newBagSlot);
             bot->SwapItem(src, dst);
             equippedBag = true;
+
+            LOG_DEBUG("playerbots",
+                      "[BAG] {} equipped [{}] ({} slots) into bag slot {}",
+                      bot->GetName(), itemId, itemProto->ContainerSlots, newBagSlot);
+
+            if (displacedId != 0)
+            {
+                LOG_DEBUG("playerbots",
+                          "[BAG] {} displaced [{}] ({} slots) from bag slot {}",
+                          bot->GetName(), displacedId, displacedSlots, newBagSlot);
+            }
         }
     }
 

@@ -993,7 +993,13 @@ void PlayerbotFactory::Randomize(bool incremental)
 
     pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "PlayerbotFactory_Bags");
     LOG_DEBUG("playerbots", "Initializing bags...");
-    InitBags();
+    // RandomBotStarterBagMode == 2 keeps the bot on the containers it was created
+    // with: the 16-slot backpack plus whatever the core granted from the
+    // CharStartOutfitEntry (DK 12-slot bags, hunter quiver). Bag progression then
+    // happens through loot, vendor and AH rather than being granted for free on
+    // every randomize.
+    if (sPlayerbotAIConfig.RandomBotStarterBagMode != 2)
+        InitBags();
     // bot->SaveToDB(false, false);
     if (pmo)
         pmo->finish();

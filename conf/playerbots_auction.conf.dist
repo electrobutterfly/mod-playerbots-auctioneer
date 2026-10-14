@@ -75,6 +75,7 @@
 #   7.  SELLER PREFERENCE
 #   8.  BASELINE ECONOMY
 #   9.  LOOT
+#   10. PLAYERBOT CREATION OVERRIDES
 #
 ####################################################################################################
 
@@ -494,7 +495,7 @@ Playerbots.Auction.ExcludeVendorSoldItems = 1
 #   7005  Skinning Knife
 #
 # Default: "2901,5956,6219,16207,7005"
-Playerbots.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005"
+Playerbots.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005,19194,19428,19456,32914,37611"
 
 ####################################################################################################
 # 4.4 Relist and Returned Auctions
@@ -573,8 +574,8 @@ Playerbots.Auction.EnableBuying = 1
 # number despite healthy listing activity, this is the first knob to turn
 # down.
 #
-# Default: 3
-Playerbots.Auction.BuyScanChancePercent = 3
+# Default: 15
+Playerbots.Auction.BuyScanChancePercent = 15
 
 # Maximum fraction of a bot's total money it will spend in a single AH visit.
 #
@@ -861,3 +862,47 @@ Playerbots.Auction.Baseline.ReloadCheckMinutes = 60
 #
 # Default: 12
 Playerbots.Loot.BagMinSlots = 12
+
+####################################################################################################
+# 10. PLAYERBOT CREATION OVERRIDES
+#
+# This section lives here, not in playerbots.conf, so that all overrides to the
+# historical mod-playerbots defaults sit in one file that is diffable against
+# upstream without touching the dist file itself. The keys are read through the
+# same merged config manager, so their placement here has no effect on the
+# loader. It does mean that anyone expecting only auctioneer-related settings in
+# this file will be surprised; the section header is the compromise.
+#
+####################################################################################################
+
+# Randombot starter bag mode.
+#
+#   1 = Bots are granted a full set of high-quality bags during every
+#       randomization. This is the historical mod-playerbots behaviour and
+#       preserves the current server state. Existing bots are untouched either
+#       way; this setting only affects bags granted by future randomizations.
+#
+#   2 = Bots keep only the containers they were created with: the 16-slot
+#       backpack every character has, plus whatever class starting containers
+#       the core itself granted during character creation. In this codebase
+#       that is four 12-slot bags for Death Knights and a single 6-slot quiver
+#       for Hunters, because the core writes those from the race/class/gender
+#       CharStartOutfitEntry during Player::Create(), before any playerbots
+#       code runs. Every other class and every other level starts with nothing
+#       but the backpack.
+#
+#       Under this mode a bot must earn its bag space through play. The
+#       existing pipeline already does this: a dropped container that is
+#       larger than the smallest equipped bag (or that fits into an empty
+#       container slot) is classified as ITEM_USAGE_EQUIP by
+#       ItemUsageValue::QueryItemUsageForEquip, EquipUpgradesPacketAction
+#       picks it up from the item-push-result packet, and EquipAction swaps
+#       it into the correct slot. Surplus bags at or above
+#       Playerbots.Loot.BagMinSlots are classified as ITEM_USAGE_AH and
+#       flow into the auction house sale path.
+#
+# Any value other than 2 is treated as 1 at load time, so a typo in this file
+# never strips bags from the entire bot population.
+#
+# Default: 1 (current behaviour)
+Playerbots.RandomBotStarterBagMode = 1
