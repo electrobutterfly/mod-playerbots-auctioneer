@@ -503,7 +503,13 @@ uint32 ItemUsageValue::GetSmallestBagSize()
 {
     int8 curSlot = 0;
     uint32 curSlots = 0;
-    for (uint8 bag = INVENTORY_SLOT_BAG_START + 1; bag < INVENTORY_SLOT_BAG_END; ++bag)
+    // Start at INVENTORY_SLOT_BAG_START, not + 1. Slot 19 is where a hunter's
+    // quiver lives (granted by the core start outfit). The previous range
+    // skipped it, so a hunter with a 6-slot quiver in slot 19 and 12-slot bags
+    // in the remaining three slots reported 12 as the smallest bag, and no
+    // 8 or 10 slot bag ever replaced the quiver. Returning 0 on an empty slot
+    // remains the "any bag fits here" sentinel and is unchanged.
+    for (uint8 bag = INVENTORY_SLOT_BAG_START; bag < INVENTORY_SLOT_BAG_END; ++bag)
     {
         if (Bag const* pBag = (Bag*)bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bag))
         {

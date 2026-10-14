@@ -179,6 +179,13 @@ bool PlayerbotAIConfig::Initialize()
     PreferClassArmorType  = sConfigMgr->GetOption<bool>("Playerbots.PreferClassArmorType", false);
     PreferredSpecWeapons  = sConfigMgr->GetOption<bool>("Playerbots.PreferredSpecWeapons", false);
 
+    // 1 = grant starter bags on randomization (historical), 2 = do not. Anything
+    // other than 2 falls back to 1, so a typo in the conf never strips bags from
+    // the entire population.
+    RandomBotStarterBagMode = sConfigMgr->GetOption<uint32>("Playerbots.RandomBotStarterBagMode", 1);
+    if (RandomBotStarterBagMode != 2)
+        RandomBotStarterBagMode = 1;
+
     RandomBotMinLevelChance = sConfigMgr->GetOption<float>("Playerbots.RandomBotMinLevelChance", 0.1f);
     RandomBotMaxLevelChance = sConfigMgr->GetOption<float>("Playerbots.RandomBotMaxLevelChance", 0.1f);
     RandomBotRpgChance = sConfigMgr->GetOption<float>("Playerbots.RandomBotRpgChance", 0.20f);
