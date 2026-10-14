@@ -202,7 +202,7 @@ The config has five sections:
 
 Create the tables (idempotent — safe to run more than once, and only needed if your install does not apply them automatically):
 
-```bash
+```python
 python3 auctioneer.py schema | mysql -u acore -p acore_characters
 ```
 
@@ -210,7 +210,7 @@ python3 auctioneer.py schema | mysql -u acore -p acore_characters
 
 Run the full pipeline once by hand:
 
-```bash
+```python
 python3 auctioneer.py run
 ```
 
@@ -277,7 +277,7 @@ If (3) shows nothing, either `DebugAuction` is off (see *Troubleshooting*) or th
 
 ## 9. Troubleshooting
 
-See [TROUBLESHOOTING.md](https://troubleshooting.md/) for the diagnostic mode, log formats, grep recipes, and the diagnostic bundle to attach to bug reports.
+See [TROUBLESHOOTING](TROUBLESHOOTING.md/) for the diagnostic mode, log formats, grep recipes, and the diagnostic bundle to attach to bug reports.
 
 ------
 
@@ -414,7 +414,7 @@ The auction-house subsystem builds on the movement, chat, and personality infras
 
 ------
 
-## Also check our other modules:
+## Also check my other modules:
 
 ### mod-afk-kicker
 
@@ -433,3 +433,9 @@ A module that limits how many players may connect from a single IP address. When
 [mod-ip-limiter for AzerothCore-wotlk](https://github.com/electrobutterfly/mod-ip-limiter)
 
 [mod-ip-limiter for TrinityCore 3.3.5](https://github.com/electrobutterfly/trinitycore-ip-limiter)
+
+------
+
+Copyright (C) 2026, Klaus Simon aka Electrobutterfly
+
+<img src="https://electrobutterfly.com/images/logo-small-github.png" alt="Logo" style="float:left; margin-right:10px; width:150px;">
