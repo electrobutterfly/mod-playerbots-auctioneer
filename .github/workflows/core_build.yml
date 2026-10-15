@@ -34,13 +34,16 @@ jobs:
         with:
           repository: 'electrobutterfly/azerothcore-wotlk-playerbots'
           ref: 'Playerbot'
-          submodules: 'recursive'
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Checkout your module into modules/
         uses: actions/checkout@v4
         with:
           repository: 'electrobutterfly/mod-playerbots-auctioneer'
           path: 'modules/mod-playerbots-auctioneer'
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Install requirements
         run: |
