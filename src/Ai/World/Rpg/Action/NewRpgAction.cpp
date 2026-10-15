@@ -314,7 +314,8 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             auto& data = std::get<NewRpgInfo::GoVendor>(info.data);
             assert(data.pos != WorldPosition());
 
-            if (data.lastReach && data.vendorSellDone && data.disenchantDone && data.buyContainerDone)
+                        if (data.lastReach && data.vendorSellDone && data.disenchantDone && data.buyContainerDone &&
+                data.craftPassDone)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -341,7 +342,9 @@ bool NewRpgStatusUpdateAction::Execute(Event /*event*/)
             bool const mailComplete = data.mailChecked;
             bool const queueComplete = data.sellQueueBuilt;
             bool const containerComplete = data.buyContainerDone;
-            if (data.lastReach && queueComplete && sellComplete && buyComplete && bidsComplete && mailComplete && containerComplete)
+            bool const craftComplete = data.craftPassDone;
+            if (data.lastReach && queueComplete && sellComplete && buyComplete && bidsComplete && mailComplete &&
+                containerComplete && craftComplete)
             {
                 info.ChangeToWanderNpc();
                 return true;
@@ -1230,6 +1233,17 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                           data->buyMaxWilling);
             }
         }
+        else if (!data->craftPassDone)
+        {
+            // Craft pass. Same reasoning as the vendor flow: use reagents
+            // before buying a container the bot could have produced. The
+            // bot is standing at an auctioneer with its bags open, which is
+            // a natural moment for a real player to top up on crafted goods
+            // before listing the rest.
+            data->craftPassDone = true;
+            botAI->DoSpecificAction("craft random item", Event("rpg action", "ah"), true);
+            return false;
+        }
         else if (!data->buyContainerDone)
         {
             // Buy-container pass. Runs once per visit, after every other
@@ -1425,6 +1439,19 @@ bool NewRpgGoVendorAction::Execute(Event /*event*/)
             ++data->disenchantSuccesses;
             // Let the cast finish before trying the next one.
             botAI->SetNextCheckDelay(sPlayerbotAIConfig.ReactDelay * 10);
+            return false;
+        }
+
+        // Craft pass. Runs before buy-container so the bot spends reagents it
+        // is already carrying before spending gold on a bag it could have
+        // produced itself. The action classifies bag-like and useful-item
+        // crafts at the same tier, so a bot that can make bags and also
+        // produces potions or enchants picks among them uniformly. Bots with
+        // no craftable spells or no reagents skip the pass silently.
+        if (!data->craftPassDone)
+        {
+            data->craftPassDone = true;
+            botAI->DoSpecificAction("craft random item", Event("rpg action", "vendor"), true);
             return false;
         }
 
