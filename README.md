@@ -111,8 +111,11 @@ That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots
 > so it always contains the exact commit the module expects.
 
 
+| Platform | Status |
+|----------|--------|
+| Linux    | [![core-build](https://github.com/electrobutterfly/mod-playerbots-auctioneer/actions/workflows/core_build.yml/badge.svg)](https://github.com/electrobutterfly/mod-playerbots-auctioneer/actions/workflows/core_build.yml) |
+| Windows  | [![windows-build](https://github.com/electrobutterfly/mod-playerbots-auctioneer/actions/workflows/windows-build.yml/badge.svg)](https://github.com/electrobutterfly/mod-playerbots-auctioneer/actions/workflows/windows-build.yml) |
 
-[![core-build](https://github.com/electrobutterfly/mod-playerbots-auctioneer/actions/workflows/core_build.yml/badge.svg)](https://github.com/electrobutterfly/mod-playerbots-auctioneer/actions/workflows/core_build.yml)
 
 ### 1. AzerothCore Playerbots
 
