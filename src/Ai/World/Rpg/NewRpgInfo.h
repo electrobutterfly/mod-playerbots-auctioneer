@@ -76,6 +76,9 @@ struct NewRpgInfo
         // GoVendor.
         bool buyContainerDone{false};
 
+        // Craft pass flag. See the matching comment on GoVendor.
+        bool craftPassDone{false};
+
         // Mail-collection sub-state. When the bot needs to walk away from
         // the auctioneer to reach a mailbox:
         //   0 = not walking
@@ -117,6 +120,12 @@ struct NewRpgInfo
         // visit; a bot that cannot afford a bag skips the pass rather than
         // looping on it.
         bool buyContainerDone{false};
+        // Craft pass flag. Set to true once the craft action has been invoked
+        // for this visit. Only fires under the new RPG system, where there is
+        // no dedicated craft status; the visit passes are the natural place
+        // for a bot that is already standing at a city NPC to make use of the
+        // reagents it has been carrying.
+        bool craftPassDone{false};
         // Set to true once the bot has been teleported to a city that hosts
         // this visit's vendor. See the same field on GoAuctioneer.
         bool cityTeleported{false};

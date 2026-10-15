@@ -289,6 +289,43 @@ bool CastRandomSpellAction::Execute(Event event)
 
         if (isCast)
         {
+            // Diagnostic: identify what was crafted. The action classes that
+            // derive from CastRandomSpellAction are crafting-type actions
+            // (craft random item, enchant random item, etc.). The prefix is
+            // uniform so a single grep catches all of them.
+            SpellInfo const* castInfo = sSpellMgr->GetSpellInfo(spellId);
+            if (castInfo)
+            {
+                uint32 producedItemId = 0;
+                for (uint8 effectIndex = 0; effectIndex < MAX_SPELL_EFFECTS; ++effectIndex)
+                {
+                    if (castInfo->Effects[effectIndex].Effect == SPELL_EFFECT_CREATE_ITEM &&
+                        castInfo->Effects[effectIndex].ItemType)
+                    {
+                        producedItemId = castInfo->Effects[effectIndex].ItemType;
+                        break;
+                    }
+                }
+
+                if (producedItemId)
+                {
+                    ItemTemplate const* producedProto = sObjectMgr->GetItemTemplate(producedItemId);
+                    LOG_DEBUG("playerbots",
+                              "[CRAFT] {} cast {} producing [{}] {}",
+                              bot->GetName(),
+                              castInfo->Id,
+                              producedItemId,
+                              producedProto ? producedProto->Name1 : "<unknown>");
+                }
+                else
+                {
+                    LOG_DEBUG("playerbots",
+                              "[CRAFT] {} cast {}",
+                              bot->GetName(),
+                              castInfo->Id);
+                }
+            }
+
             if (MultiCast && ((wo && bot->HasInArc(CAST_ANGLE_IN_FRONT, wo, sPlayerbotAIConfig.SightDistance))))
             {
                 std::ostringstream cmd;
