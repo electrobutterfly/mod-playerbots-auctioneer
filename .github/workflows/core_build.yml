@@ -16,11 +16,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Release
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             c_compiler: gcc
             cpp_compiler: g++
             build_type: Release
