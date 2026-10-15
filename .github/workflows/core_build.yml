@@ -35,7 +35,6 @@ jobs:
           repository: 'electrobutterfly/azerothcore-wotlk-playerbots'
           ref: 'Playerbot'
           fetch-depth: 1
-          persist-credentials: false
 
       - name: Checkout your module into modules/
         uses: actions/checkout@v4
@@ -43,7 +42,9 @@ jobs:
           repository: 'electrobutterfly/mod-playerbots-auctioneer'
           path: 'modules/mod-playerbots-auctioneer'
           fetch-depth: 1
-          persist-credentials: false
+
+      - name: Remove .gitmodules to prevent post-checkout hang
+        run: rm -f .gitmodules
 
       - name: Install requirements
         run: |
