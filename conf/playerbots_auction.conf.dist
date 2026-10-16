@@ -927,6 +927,7 @@ Playerbots.Loot.BagMinSlots = 12
 #
 # Any value other than 2 is treated as 1 at load time, so a typo in this file
 # never strips bags from the entire bot population.
+# Only change this value on an empty server without bots!
 #
 # Default: 1 (current behaviour)
 Playerbots.RandomBotStarterBagMode = 1
