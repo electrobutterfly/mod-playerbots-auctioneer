@@ -439,6 +439,6 @@ A module that limits how many players may connect from a single IP address. When
 
 ------
 
-Copyright (C) 2026, Klaus Simon aka Electrobutterfly
+2026, Klaus Simon aka Electrobutterfly
 
 <img src="https://electrobutterfly.com/images/logo-small-github.png" alt="Logo" style="float:left; margin-right:10px; width:150px;">
