@@ -1870,18 +1870,12 @@ void NewRpgTravelFlightAction::ContinueCrossMapTaxi()
 
 bool AhAction::Execute(Event event)
 {
-    LOG_ERROR("playerbots", "[AH-DIAG] AhAction::Execute fired, param='{}'", event.getParam());
-
     Player* owner = event.getOwner();
     if (!owner)
-    {
-        LOG_ERROR("playerbots", "[AH-DIAG] no owner on event, aborting");
         return false;
-    }
 
-        auto reply = [&](std::string const& msg) {
+    auto reply = [&](std::string const& msg) {
         bot->Whisper(msg, LANG_UNIVERSAL, owner);
-        LOG_ERROR("playerbots", "[AH-DIAG] reply to {}: {}", owner->GetName(), msg);
     };
 
     if (!sPlayerbotAIConfig.allowPlayerAuctionCommands)
@@ -1936,48 +1930,8 @@ bool AhAction::Execute(Event event)
             return false;
         }
 
-        // -- diagnostic: check every precondition the handler will check --
-        Creature* verify = bot->GetNPCIfCanInteractWith(auctioneer->GetGUID(), UNIT_NPC_FLAG_AUCTIONEER);
-        LOG_ERROR("playerbots", "[AH-DIAG] GetNPCIfCanInteractWith: {}",
-                  verify ? "OK" : "NULL");
-        LOG_ERROR("playerbots", "[AH-DIAG] bot money={} needed={} alive={} inWorld={}",
-                  bot->GetMoney(), price,
-                  bot->IsAlive() ? "yes" : "no",
-                  bot->IsInWorld() ? "yes" : "no");
-
         AuctionHouseEntry const* ahEntry =
             AuctionHouseMgr::GetAuctionHouseEntryFromFactionTemplate(auctioneer->GetFaction());
-        if (!ahEntry)
-        {
-            LOG_ERROR("playerbots", "[AH-DIAG] no AuctionHouseEntry for faction {}",
-                      auctioneer->GetFaction());
-        }
-        else
-        {
-            AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction());
-            if (!ahObj)
-            {
-                LOG_ERROR("playerbots", "[AH-DIAG] no AuctionHouseObject");
-            }
-            else
-            {
-                AuctionEntry* auction = ahObj->GetAuction(auctionId);
-                if (!auction)
-                {
-                    LOG_ERROR("playerbots", "[AH-DIAG] auction {} NOT FOUND", auctionId);
-                }
-                else
-                {
-                    LOG_ERROR("playerbots",
-                              "[AH-DIAG] auction {} found: owner={} startbid={} bid={} buyout={}",
-                              auctionId, auction->owner.ToString(),
-                              auction->startbid, auction->bid, auction->buyout);
-                    LOG_ERROR("playerbots", "[AH-DIAG] owner is bot? {}",
-                              auction->owner == bot->GetGUID() ? "YES (this blocks the bid)" : "no");
-                }
-            }
-        }
-        // -- end diagnostic --
         
         // Reject bids that aren't strictly greater than the current bid.
         // The server-side handler silently drops these; catching it here
@@ -2104,24 +2058,6 @@ bool AhAction::Execute(Event event)
             why << "No tradeable item with entry " << itemId << " in my bags.";
             reply(why.str());
             return false;
-        }
-
-        {
-            Creature* verify = bot->GetNPCIfCanInteractWith(auctioneer->GetGUID(), UNIT_NPC_FLAG_AUCTIONEER);
-            LOG_ERROR("playerbots", "[AH-DIAG] sell GetNPCIfCanInteractWith: {}",
-                      verify ? "OK" : "NULL");
-            LOG_ERROR("playerbots",
-                      "[AH-DIAG] sell item entry={} count={} tradable={} bag={} slot={}",
-                      target->GetEntry(), target->GetCount(),
-                      target->CanBeTraded() ? "yes" : "no",
-                      target->GetBagSlot(), target->GetSlot());
-            AuctionHouseEntry const* ahE =
-                AuctionHouseMgr::GetAuctionHouseEntryFromFactionTemplate(auctioneer->GetFaction());
-            if (!ahE)
-                LOG_ERROR("playerbots", "[AH-DIAG] sell no AuctionHouseEntry");
-            else
-                LOG_ERROR("playerbots", "[AH-DIAG] sell auctionHouseEntry OK houseId={}",
-                          uint32(ahE->houseId));
         }
 
         PlayerbotAuction::SendSellItem(bot, auctioneer, target, bid, buyout, duration);

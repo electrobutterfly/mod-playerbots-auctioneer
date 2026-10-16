@@ -53,7 +53,7 @@ The economy runs **autonomously**: no human players are required for the AH to f
 
 mod-ah-bot-plus is installed as a dependency because the auctioneer's buyer and seller logic is benchmarked against the same `CalculateItemValue` implementation that mod uses. But the AH bot's own buyer and seller features can be independently enabled or disabled — the playerbots-auctioneer provides the buyer and seller behavior for the bot population itself, and works with those features off.
 
-The AH bot GUIDs from mod-ah-bot-plus are used only to classify sellers for the buyer-preference logic (`Playerbots.Auction.AhBotGUIDs`), so the bots know the difference between "another playerbot" and "the dedicated AH bot". If you are not running mod-ah-bot-plus, leave that config key empty and the classification falls back to `Unknown`.
+The AH bot GUIDs from mod-ah-bot-plus are used only to classify sellers for the buyer-preference logic (`Playerbots.Auction.AhBotGUIDs`), so the bots know the difference between "another playerbot" and "the dedicated AH bot". If you are not running mod-ah-bot-plus, leave that config key empty. Sellers are then classified as either `RealPlayer` or `Playerbot`; only when an AH bot GUID from `Playerbots.Auction.AhBotGUIDs` matches is a seller classified as `AhBot`.
 
 ### Bag progression
 
