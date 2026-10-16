@@ -1184,8 +1184,46 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
         }
                 else if (data->buyAuctionId != 0 && !data->buyDone)
         {
-            PlayerbotAuction::SendPlaceBid(bot, auctioneer, data->buyAuctionId, data->buyPrice);
             data->buyDone = true;
+
+            // Re-validate against the live auction before sending. Another
+            // bot may have bought the listing out or bid it past our cap
+            // since the candidate was selected. The server would silently
+            // reject such a bid; tracking it anyway would leave a stale
+            // entry that the next visit's re-evaluation pass tries to
+            // defend.
+            AuctionEntry* live = nullptr;
+            if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(auctioneer->GetFaction()))
+                live = ahObj->GetAuction(data->buyAuctionId);
+
+            bool willAccept = false;
+            if (live)
+            {
+                if (live->buyout != 0 && data->buyPrice >= live->buyout)
+                    willAccept = true;                                 // buyout
+                else if (live->bid == 0)
+                    willAccept = (data->buyPrice >= live->startbid);   // first bid
+                else
+                    willAccept = (data->buyPrice > live->bid);         // outbid
+            }
+
+            if (!willAccept)
+            {
+                if (sPlayerbotAIConfig.debugAuction)
+                {
+                    LOG_ERROR("playerbots",
+                              "[AH-TRACE] {} skipping buy: auctionId={} price={} "
+                              "no longer acceptable (exists={} bid={} startbid={} buyout={})",
+                              bot->GetName(), data->buyAuctionId, data->buyPrice,
+                              live ? 1 : 0,
+                              live ? live->bid : 0,
+                              live ? live->startbid : 0,
+                              live ? live->buyout : 0);
+                }
+                return false;
+            }
+
+            PlayerbotAuction::SendPlaceBid(bot, auctioneer, data->buyAuctionId, data->buyPrice);
 
             // Remember this auction so we re-bid if someone outbids us later.
             // item_template and item_count are captured now, while the entry
