@@ -7,6 +7,7 @@
 #include "PlayerbotFactory.h"
 #include "PlayerbotsDatabase.h"
 #include "AccountMgr.h"
+#include "Config.h"
 #include "AiFactory.h"
 #include "AiObjectContext.h"
 #include "ArenaTeam.h"
@@ -993,13 +994,10 @@ void PlayerbotFactory::Randomize(bool incremental)
 
     pmo = sPerfMonitor.start(PERF_MON_RNDBOT, "PlayerbotFactory_Bags");
     LOG_DEBUG("playerbots", "Initializing bags...");
-    // RandomBotStarterBagMode == 2 keeps the bot on the containers it was created
-    // with: the 16-slot backpack plus whatever the core granted from the
-    // CharStartOutfitEntry (DK 12-slot bags, hunter quiver). Bag progression then
-    // happens through loot, vendor and AH rather than being granted for free on
-    // every randomize.
-    if (sPlayerbotAIConfig.RandomBotStarterBagMode != 2)
-        InitBags();
+    // Unconditional call, identical to upstream mod-playerbots. The mode gate
+    // lives inside InitBags so this call site is structurally the same as the
+    // original and no future edit here can skip it by mistake.
+    InitBags();
     // bot->SaveToDB(false, false);
     if (pmo)
         pmo->finish();
@@ -2957,6 +2955,20 @@ inline Item* StoreNewItemInInventorySlot(Player* player, uint32 newItemId, uint3
 
 void PlayerbotFactory::InitBags(bool destroyOld)
 {
+    // Read the mode straight from sConfigMgr, not from the singleton. The
+    // singleton's RandomBotStarterBagMode is only refreshed by
+    // PlayerbotAIConfig::Initialize(), which runs once at
+    // WORLDHOOK_ON_BEFORE_WORLD_INITIALIZED. If the operator changes
+    // playerbots_auction.conf and reloads config without restarting the
+    // process, sConfigMgr sees the new value immediately but the singleton
+    // still holds the boot-time value, and the check below would branch on
+    // stale data. Reading sConfigMgr here makes every randomize honour the
+    // file that is on disk now, and also removes any dependence on
+    // PlayerbotAIConfig::Initialize() having run for this field.
+    uint32 const mode = sConfigMgr->GetOption<uint32>("Playerbots.RandomBotStarterBagMode", 1);
+    if (mode == 2)
+        return;
+
     for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
     {
         uint32 newItemId = 51809;
@@ -2969,17 +2981,21 @@ void PlayerbotFactory::InitBags(bool destroyOld)
             continue;
 
         if (old_bag && destroyOld)
+        {
             bot->DestroyItem(INVENTORY_SLOT_BAG_0, slot, true);
+            // DestroyItem clears the slot but does not null this local pointer.
+            // Without the explicit clear the guard below fires on the stale
+            // value and skips the equip that should replace the destroyed bag,
+            // leaving the slot empty. That is what makes a Death Knight's four
+            // 12-slot Deathweave starter bags (or a Hunter's quiver) disappear
+            // on the first mode-1 randomize instead of being replaced by 51809.
+            old_bag = nullptr;
+        }
 
         if (old_bag)
             continue;
 
         bot->EquipNewItem(dest, newItemId, true);
-        // if (newItem)
-        // {
-        //     newItem->AddToWorld();
-        //     newItem->AddToUpdateQueueOf(bot);
-        // }
     }
 }
 

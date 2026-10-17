@@ -172,7 +172,10 @@ public:
     //   1 = bots are granted a full bag set during randomization (historical)
     //   2 = bots keep only the containers granted at character creation and must
     //       earn further bags through gameplay
-    uint32 RandomBotStarterBagMode;
+    // Default-initialised to 1 so that if Initialize() somehow does not run the
+    // member is still the original mod-playerbots behaviour rather than
+    // uninitialised memory.
+    uint32 RandomBotStarterBagMode = 1;
     float RandomBotMinLevelChance, RandomBotMaxLevelChance;
     float RandomBotRpgChance;
     uint32 MinRandomBots, MaxRandomBots;
