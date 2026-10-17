@@ -687,6 +687,52 @@ Playerbots.Auction.BuyPriceMultiplierMax = 10
 Playerbots.Auction.AllowBuyout = 0
 
 ####################################################################################################
+# 5.4 Container Buying
+#
+# Bots buy bags from vendors and the auction house to fill their four bag
+# slots. A bot keeps buying while any slot is smaller than the buy target,
+# and it keeps buying above the target when a strictly larger affordable
+# bag is available (bigger is always better). It stops only when no bigger
+# affordable bag exists, or its gold budget is exhausted.
+#
+# Tailors craft bags for themselves first: any empty slot gives bag
+# recipes an exclusive top priority. Once a tailors own slots are filled,
+# bag crafting continues at lower priority while the faction AH has fewer
+# than Auction.BagAHCap container listings, then stops entirely so the
+# tailor goes back to crafting something else.
+####################################################################################################
+
+# Container slot-size target for BuyContainerAction. A bot will keep
+# buying bags from vendors and the AH until every one of its four bag
+# slots is at least this many slots. Above the target, a strictly larger
+# affordable bag on offer is still bought (bigger is always better).
+#
+# 16-slot matches the Netherweave Bag, the cheapest crafted bag on most
+# WotLK servers. Higher values (18, 20, 22) chase the Frostweave, Glacial
+# and specialty bags and require the population to afford them.
+#
+# Set to 0 to disable bag buying entirely (crafting and looting still
+# fill slots). Set to 24 to force the population to chase the largest
+# bags in the game.
+#
+# Default: 16
+Playerbots.Auction.BagBuyTarget = 16
+
+# Threshold of live container listings on the faction AH above which
+# tailors stop crafting bags purely for AH sale. Below the cap, bag
+# recipes get priority 6 (above generic useful crafts but below bags
+# needed for the bot's own slots). Above the cap, bag recipes drop to
+# priority 1 (never picked unless nothing else is available).
+#
+# Set to 0 to disable bag-for-AH crafting entirely; tailors will only
+# craft bags to fill their own empty or undersized slots.
+# Set to a high value (100, 200) on servers where the population is
+# large enough to absorb more AH bag volume.
+#
+# Default: 50
+Playerbots.Auction.BagAHCap = 50
+
+####################################################################################################
 # 6. BIDDING
 ####################################################################################################
 

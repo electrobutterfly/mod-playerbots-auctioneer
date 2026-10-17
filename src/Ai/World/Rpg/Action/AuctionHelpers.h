@@ -50,6 +50,14 @@ namespace PlayerbotAuction
     // Number of live auctions in the AH currently owned by this bot.
     uint32 CountActiveListings(Player* bot);
 
+    // Number of live container auctions on the bot's faction AH. Counts
+    // every ITEM_CLASS_CONTAINER / ITEM_SUBCLASS_CONTAINER listing
+    // regardless of owner. Result is cached per faction for 60 seconds,
+    // so repeated calls within the TTL do not walk the AH map. The cache
+    // is keyed by TeamId (Alliance / Horde); neutral-bot players are
+    // treated as Alliance for the purpose of the count.
+    uint32 CountBagListings(Player* bot);
+
     // Cancel and delete every live auction owned by `bot`, refunding any
     // bidder through the core's normal cancel mail. Returns count removed.
     uint32 RemoveAllBotAuctions(Player* bot);

@@ -379,6 +379,18 @@ public:
     uint32 auctionMaxActiveListingsPerBot;
     uint32 auctionMaxRelistRetries;
     uint32 auctionMaxSellsPerVisit;
+
+    // Bag-buying target: the bot keeps buying bags from vendors and the
+    // AH until every bag slot is at least this many slots. Once at the
+    // target, a strictly larger affordable bag on offer is still bought
+    // (bigger is always better). Set higher on well-developed servers.
+    uint32 auctionBagBuyTarget;
+
+    // Threshold of live container listings on the faction AH above which
+    // tailors stop crafting bags purely for AH sale. Bags still get
+    // crafted while any of the bot's own slots is empty or below
+    // auctionBagBuyTarget. Set to 0 to disable bag-for-AH crafting.
+    uint32 auctionBagAHCap;
     uint32 auctionRelistUndercutPercentMin;
     uint32 auctionRelistUndercutPercentMax;
     bool auctionRunAnalysis;

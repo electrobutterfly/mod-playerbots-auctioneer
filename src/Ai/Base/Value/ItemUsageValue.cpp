@@ -236,8 +236,39 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
     if (itemProto->Class == ITEM_CLASS_CONTAINER)
     {
         if (itemProto->SubClass != ITEM_SUBCLASS_CONTAINER)
-            return ITEM_USAGE_NONE;  // Todo add logic for non-bag containers. We want to look at professions/class and
-                                     // only replace if non-bag is larger than bag.
+            return ITEM_USAGE_NONE;
+
+        // Profession-restricted bags (herb pouch, mining bag, enchanting
+        // bag, etc.) are useless to a bot without the matching profession.
+        // Reject them here so loot / buy pipelines never treat them as
+        // upgrades even if they somehow reach inventory.
+        if (itemProto->BagFamily != 0)
+        {
+            bool hasProfession = false;
+            uint32 const family = itemProto->BagFamily;
+            if ((family & BAG_FAMILY_MASK_HERBS) && botAI->HasSkill(SKILL_HERBALISM))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_MINING_SUPP) && botAI->HasSkill(SKILL_MINING))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_LEATHERWORKING_SUPP) && botAI->HasSkill(SKILL_LEATHERWORKING))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_ENCHANTING_SUPP) && botAI->HasSkill(SKILL_ENCHANTING))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_ENGINEERING_SUPP) && botAI->HasSkill(SKILL_ENGINEERING))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_GEMS) && botAI->HasSkill(SKILL_JEWELCRAFTING))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_INSCRIPTION_SUPP) && botAI->HasSkill(SKILL_INSCRIPTION))
+                hasProfession = true;
+            else if ((family & BAG_FAMILY_MASK_SOUL_SHARDS) && bot->getClass() == CLASS_WARLOCK)
+                hasProfession = true;
+            else if ((family & (BAG_FAMILY_MASK_ARROWS | BAG_FAMILY_MASK_BULLETS)) && bot->getClass() == CLASS_HUNTER)
+                hasProfession = true;
+
+            if (!hasProfession)
+                return ITEM_USAGE_NONE;
+        }
+
         if (GetSmallestBagSize() >= itemProto->ContainerSlots)
         {
             // Add Auctioneer

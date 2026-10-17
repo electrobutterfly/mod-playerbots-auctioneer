@@ -4552,6 +4552,31 @@ void PlayerbotFactory::InitReagents()
         default:
             break;
     }
+    // Tailoring thread seeding. Randombots with Tailoring receive six of
+    // the thread matching their current skill tier, enough for two bag
+    // crafts without a vendor round trip. This collapses the bolt ->
+    // thread -> bag chain from "three lucky vendor visits" to "two craft
+    // passes in one visit". Altbots are excluded because they are player-
+    // owned and must not receive automatic reagent replenishment.
+    if (sRandomPlayerbotMgr.IsRandomBot(bot) && bot->HasSkill(SKILL_TAILORING))
+    {
+        uint32 const tailoringSkill = bot->GetSkillValue(SKILL_TAILORING);
+        uint32 threadId = 0;
+        if (tailoringSkill >= 375)
+            threadId = 38426;  // Eternium Thread
+        else if (tailoringSkill >= 250)
+            threadId = 14341;  // Rune Thread
+        else if (tailoringSkill >= 175)
+            threadId = 4291;   // Silken Thread
+        else if (tailoringSkill >= 100)
+            threadId = 2321;   // Fine Thread
+        else if (tailoringSkill >= 1)
+            threadId = 2320;   // Coarse Thread
+
+        if (threadId != 0)
+            items.push_back({threadId, 6});
+    }
+
     for (std::pair item : items)
     {
         int count = (int)item.second - (int)bot->GetItemCount(item.first);
@@ -4560,7 +4585,7 @@ void PlayerbotFactory::InitReagents()
     }
 }
 
-void PlayerbotFactory::CleanupConsumables() // remove old consumables as part of randombot level-up maintenance
+void PlayerbotFactory::CleanupConsumables()
 {
     std::vector<Item*> itemsToDelete;
 

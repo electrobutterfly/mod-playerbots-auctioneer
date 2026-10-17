@@ -646,6 +646,14 @@ bool PlayerbotAIConfig::Initialize()
         auctionMaxRelistRetries =
         sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxRelistRetries", 3);
 
+    auctionBagBuyTarget =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BagBuyTarget", 16);
+    if (auctionBagBuyTarget < 1)
+        auctionBagBuyTarget = 16;
+
+    auctionBagAHCap =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BagAHCap", 50);
+
     // Load the set of items stocked by any NPC vendor. Used by FindItemToSell
     // to skip vendor junk. Trade goods, recipes, and consumables are exempt
     // because they can have a BuyPrice on a limited-supply vendor while still

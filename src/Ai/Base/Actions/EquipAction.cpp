@@ -65,8 +65,15 @@ void EquipAction::EquipItem(FindItemVisitor* visitor)
 {
     IterateItems(visitor);
     std::vector<Item*> items = visitor->GetResult();
-    if (!items.empty())
-        EquipItem(*items.begin());
+    // Equip every matching instance, not just the first. A bot with four
+    // identical 10-slot bags in inventory (bought in one multi-buy pass)
+    // must equip all four into slots 19-22; taking only the first match
+    // leaves three bags orphaned in inventory, permanently wasting the
+    // gold that was spent buying them. GetSmallestBagSlot() returns the
+    // next empty slot in order, so successive calls fill 19, then 20,
+    // then 21, then 22 without any coordination needed.
+    for (Item* item : items)
+        EquipItem(item);
 }
 
 void EquipAction::EquipItem(Item* item)
@@ -91,6 +98,17 @@ void EquipAction::EquipItem(Item* item)
     bool equippedBag = false;
     if (itemProto->Class == ITEM_CLASS_CONTAINER)
     {
+        // Re-verify that this bag is still an upgrade. Equipping earlier
+        // items in the same Execute batch may have already filled the slot
+        // this bag was classified against in SelectInventoryItemsToEquip(),
+        // so without this check a batch of four identical bags would perform
+        // three no-op swaps (10-slot into a slot that already holds a 10-slot).
+        ItemUsage const usage =
+            AI_VALUE2(ItemUsage, "item upgrade", std::to_string(itemId));
+        if (usage != ITEM_USAGE_EQUIP && usage != ITEM_USAGE_REPLACE &&
+            usage != ITEM_USAGE_BAD_EQUIP)
+            return;
+
         // Attempt to equip as a bag
         uint8 newBagSlot = GetSmallestBagSlot();
 

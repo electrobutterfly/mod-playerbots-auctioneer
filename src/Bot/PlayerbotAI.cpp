@@ -3382,7 +3382,8 @@ bool PlayerbotAI::CanCastSpell(std::string const name, Unit* target, Item* itemT
     return CanCastSpell(aiObjectContext->GetValue<uint32>("spell id", name)->Get(), target, true, itemTarget);
 }
 
-bool PlayerbotAI::CanCastSpell(uint32 spellid, Unit* target, bool checkHasSpell, Item* itemTarget, Item* castItem)
+bool PlayerbotAI::CanCastSpell(uint32 spellid, Unit* target, bool checkHasSpell, Item* itemTarget, Item* castItem,
+                               bool checkReagents)
 {
     if (!spellid)
     {
@@ -3497,7 +3498,8 @@ bool PlayerbotAI::CanCastSpell(uint32 spellid, Unit* target, bool checkHasSpell,
     // TRIGGERED_IGNORE_POWER_AND_REAGENT_COST flag for not calling CheckPower in check
     // which avoids buff charge to be ineffectively reduced (e.g. dk freezing fog for howling blast)
     /// @TODO: Fix all calls to ApplySpellMod
-    Spell* spell = new Spell(bot, spellInfo, TRIGGERED_IGNORE_POWER_AND_REAGENT_COST);
+    Spell* spell = new Spell(bot, spellInfo,
+        checkReagents ? TRIGGERED_NONE : TRIGGERED_IGNORE_POWER_AND_REAGENT_COST);
 
     spell->m_targets.SetUnitTarget(target);
     spell->m_CastItem = castItem;

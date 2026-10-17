@@ -55,6 +55,26 @@ namespace PlayerbotAuction
 
     // Number of empty slots across the bot's backpack and equipped bags.
     uint32 CountFreeBagSlots(Player* bot);
+
+    // True if the bot has at least one uncollected bag-like item won at
+    // the auction house and still in the mailbox. Extends the mailbox
+    // walk trigger so a bot with a won bag still in transit walks to the
+    // mailbox on its next AH visit rather than leaving it stuck forever.
+    bool BotHasUncollectedWonBags(Player* bot);
+
+    // Number of bag-like items won at the auction house and still in the
+    // mailbox. Bags bought on the AH arrive by mail, not by inventory; a
+    // bot that has already won a bag but not yet collected it must not
+    // buy another bag from a vendor or another auction, or the copper is
+    // wasted on a duplicate that may not even be an upgrade once the
+    // mail bag is equipped.
+    uint32 CountUncollectedWonBags(Player* bot);
+
+    // Collect every won-bag mail from the mailbox, storing each bag into
+    // the bot's bags. Returns the item_template IDs of every collected
+    // bag. The bags will then be picked up by the item-push-result
+    // handler and equipped by EquipUpgradesPacketAction.
+    std::vector<uint32> TakeWonBagMail(PlayerbotAI* botAI, ObjectGuid mailbox);
 }
 
 #endif
