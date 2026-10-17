@@ -80,6 +80,56 @@ namespace
         std::string const response = s.substr(c2 + 1, c3 - c2 - 1);
         return response == "3";  // AUCTION_EXPIRED
     }
+
+    // A won-auction mail carrying a bag-like item. Won auctions have
+    // response == "1" in the mail subject (AUCTION_WON); expired
+    // auctions have response == "3" (AUCTION_EXPIRED).
+    // IsReturnedAuctionMail() handles the expired case; this helper
+    // handles the won case, but only for bag-like containers, because
+    // bags won on the AH arrive by mail and must be collected and
+    // equipped.
+    bool IsWonBagMail(Mail const* mail)
+    {
+        if (!mail)
+            return false;
+        if (mail->state == MAIL_STATE_DELETED)
+            return false;
+        if (mail->messageType != MAIL_AUCTION)
+            return false;
+        if (mail->items.empty())
+            return false;
+        if (mail->deliver_time > time(nullptr))
+            return false;
+
+        std::string const& s = mail->subject;
+        size_t const c1 = s.find(':');
+        if (c1 == std::string::npos)
+            return false;
+        size_t const c2 = s.find(':', c1 + 1);
+        if (c2 == std::string::npos)
+            return false;
+        size_t const c3 = s.find(':', c2 + 1);
+        if (c3 == std::string::npos)
+            return false;
+
+        std::string const response = s.substr(c2 + 1, c3 - c2 - 1);
+        if (response != "1")  // AUCTION_WON
+            return false;
+
+        for (MailItemInfo const& mii : mail->items)
+        {
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(mii.item_template);
+            if (!proto)
+                continue;
+            if (proto->Class == ITEM_CLASS_CONTAINER &&
+                (proto->SubClass == ITEM_SUBCLASS_CONTAINER ||
+                 proto->SubClass == ITEM_SUBCLASS_QUIVER ||
+                 proto->SubClass == ITEM_SUBCLASS_AMMO_POUCH))
+                return true;
+        }
+
+        return false;
+    }
 }  // namespace
 
 bool BotHasExpiredAuctionMail(Player* bot, std::vector<uint32>& outEntries)
@@ -193,6 +243,90 @@ std::vector<uint32> TakeExpiredAuctionMail(PlayerbotAI* botAI, ObjectGuid mailbo
         del << mailbox;
         del << mail->messageID;
         del << uint32(0);  // mailTemplateId
+        del.rpos(0);
+        bot->GetSession()->HandleMailDelete(del);
+
+        for (uint32 entry : taken)
+            collected.push_back(entry);
+    }
+
+    return collected;
+}
+
+bool BotHasUncollectedWonBags(Player* bot)
+{
+    if (!bot)
+        return false;
+
+    for (PlayerMails::const_iterator it = bot->GetMails().begin(); it != bot->GetMails().end(); ++it)
+    {
+        if (IsWonBagMail(*it))
+            return true;
+    }
+    return false;
+}
+
+uint32 CountUncollectedWonBags(Player* bot)
+{
+    if (!bot)
+        return 0;
+
+    uint32 count = 0;
+    for (PlayerMails::const_iterator it = bot->GetMails().begin(); it != bot->GetMails().end(); ++it)
+    {
+        Mail* mail = *it;
+        if (!IsWonBagMail(mail))
+            continue;
+        for (MailItemInfo const& mii : mail->items)
+        {
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(mii.item_template);
+            if (!proto)
+                continue;
+            if (proto->Class == ITEM_CLASS_CONTAINER)
+                ++count;
+        }
+    }
+    return count;
+}
+
+std::vector<uint32> TakeWonBagMail(PlayerbotAI* botAI, ObjectGuid mailbox)
+{
+    std::vector<uint32> collected;
+    if (!botAI || mailbox.IsEmpty())
+        return collected;
+
+    Player* bot = botAI->GetBot();
+    if (!bot)
+        return collected;
+
+    std::vector<Mail*> mails;
+    for (PlayerMails::const_iterator it = bot->GetMails().begin(); it != bot->GetMails().end(); ++it)
+    {
+        Mail* mail = *it;
+        if (IsWonBagMail(mail))
+            mails.push_back(mail);
+    }
+
+    for (Mail* mail : mails)
+    {
+        std::vector<MailItemInfo> items = mail->items;
+        std::vector<uint32> taken;
+
+        for (MailItemInfo const& mii : items)
+        {
+            WorldPacket packet;
+            packet << mailbox;
+            packet << mail->messageID;
+            packet << mii.item_guid;
+            packet.rpos(0);
+            bot->GetSession()->HandleMailTakeItem(packet);
+            taken.push_back(mii.item_template);
+        }
+
+        WorldPacket del;
+        del << mailbox;
+        del << mail->messageID;
+        del << uint32(0);
         del.rpos(0);
         bot->GetSession()->HandleMailDelete(del);
 

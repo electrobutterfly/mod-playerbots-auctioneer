@@ -5,6 +5,7 @@
  */
 
 #include "CastCustomSpellAction.h"
+#include "AuctionHelpers.h"
 #include "ChatHelper.h"
 #include "Event.h"
 #include "ItemUsageValue.h"
@@ -252,12 +253,12 @@ bool CastRandomSpellAction::Execute(Event event)
         {
             uint32 spellPriority = GetSpellPriority(spellInfo);
 
-            if (target && botAI->CanCastSpell(spellId, target, true))
+            if (target && botAI->CanCastSpell(spellId, target, true, nullptr, nullptr, true))
                 spellList.push_back(std::make_pair(spellId, std::make_pair(spellPriority, target)));
-            if (got &&
-                botAI->CanCastSpell(spellId, got->GetPositionX(), got->GetPositionY(), got->GetPositionZ(), true))
+            if (got && botAI->CanCastSpell(spellId, got->GetPositionX(), got->GetPositionY(), got->GetPositionZ(),
+                                           true, nullptr))
                 spellList.push_back(std::make_pair(spellId, std::make_pair(spellPriority, got)));
-            if (botAI->CanCastSpell(spellId, bot, true))
+            if (botAI->CanCastSpell(spellId, bot, true, nullptr, nullptr, true))
                 spellList.push_back(std::make_pair(spellId, std::make_pair(spellPriority, bot)));
         }
     }
@@ -269,7 +270,7 @@ bool CastRandomSpellAction::Execute(Event event)
 
     std::sort(spellList.begin(), spellList.end(),
               [](std::pair<uint32, std::pair<uint32, WorldObject*>> i,
-                 std::pair<uint32, std::pair<uint32, WorldObject*>> j) { return i.first > j.first; });
+                 std::pair<uint32, std::pair<uint32, WorldObject*>> j) { return i.second.first > j.second.first; });
 
     uint32 rndBound = spellList.size() / 4;
 
@@ -339,10 +340,22 @@ bool CastRandomSpellAction::Execute(Event event)
     return false;
 }
 
+bool CraftRandomItemAction::isUseful()
+{
+    if (bot->IsInCombat())
+        return false;
+
+    return botAI->HasSkill(SKILL_ALCHEMY) || botAI->HasSkill(SKILL_BLACKSMITHING) ||
+           botAI->HasSkill(SKILL_ENCHANTING) || botAI->HasSkill(SKILL_ENGINEERING) ||
+           botAI->HasSkill(SKILL_JEWELCRAFTING) || botAI->HasSkill(SKILL_LEATHERWORKING) ||
+           botAI->HasSkill(SKILL_TAILORING) || botAI->HasSkill(SKILL_INSCRIPTION) ||
+           botAI->HasSkill(SKILL_COOKING) || botAI->HasSkill(SKILL_FIRST_AID);
+}
+
 bool CraftRandomItemAction::AcceptSpell(SpellInfo const* spellInfo)
 {
     return spellInfo->Effects[EFFECT_0].Effect == SPELL_EFFECT_CREATE_ITEM && spellInfo->ReagentCount[EFFECT_0] > 0 &&
-           spellInfo->SchoolMask == 0;
+           spellInfo->SchoolMask == 1;
 }
 
 uint32 CraftRandomItemAction::GetSpellPriority(SpellInfo const* spellInfo)
@@ -350,36 +363,97 @@ uint32 CraftRandomItemAction::GetSpellPriority(SpellInfo const* spellInfo)
     // AcceptSpell already filtered on Effect == SPELL_EFFECT_CREATE_ITEM, so the
     // historical "!= SPELL_EFFECT_CREATE_ITEM" guard was dead code and the
     // useful-item tier below never ran. Corrected here.
-    //
-    // The bag-like branch is new. Any container recipe the bot knows is a
-    // craft candidate at any size, regardless of profession: bags from
-    // Tailoring, quivers and ammo pouches from Leatherworking, etc. Low
-    // skill bots produce 6- and 8-slot, mid skill produce 10- and 12-slot,
-    // maxed bots produce 16-, 18- and 24-slot. Recipes are gated by the
-    // bot's own profession skill, so population-level variety is automatic.
-    //
-    // Bag-like crafts sit at the same tier as useful-item crafts, not above
-    // them. They join the pool; they do not replace it. A bot with a bag
-    // recipe and three useful-item recipes picks uniformly among the top
-    // 25 % of the combined pool.
     uint32 newItemId = spellInfo->Effects[EFFECT_0].ItemType;
-    if (newItemId)
+    if (!newItemId)
     {
-        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(newItemId);
-        if (proto && proto->Class == ITEM_CLASS_CONTAINER && proto->SubClass == ITEM_SUBCLASS_CONTAINER)
-            return 10;
+        if (ItemUsageValue::SpellGivesSkillUp(spellInfo->Id, bot))
+            return 8;
 
-        ItemUsage usage = AI_VALUE2(ItemUsage, "item usage", newItemId);
-        if (usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_AMMO ||
-            usage == ITEM_USAGE_QUEST || usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_USE)
-            return 10;
+        return 1;
     }
 
+    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(newItemId);
+    if (!proto)
+        return 1;
+
+    // Containers (bags, quivers, ammo pouches) get a special priority
+    // scheme. Bags are pure utility: a bot can never have too much bag
+    // space, but a bot whose slots are already full has no direct use
+    // for a bag recipe beyond stocking the AH.
+    //
+    //   1. Any slot empty           -> priority 12 + ContainerSlots
+    //                                  Exclusive top tier. Bigger bags
+    //                                  win, so the bot doesn't fill a
+    //                                  slot with a 6-slot bag when a
+    //                                  16-slot one is in the pool.
+    //   2. Smallest slot < output   -> priority 10 + ContainerSlots
+    //                                  Upgrade tier. Still above the
+    //                                  generic 10 shared with other
+    //                                  useful crafts because bigger
+    //                                  upgrades outrank smaller ones.
+    //   3. All slots >= output,
+    //      AH below BagAHCap        -> priority 6
+    //                                  Craft for AH supply.
+    //   4. All slots >= output,
+    //      AH at or above cap       -> priority 1
+    //                                  Stop crafting bags, do something
+    //                                  else with the reagents.
+    if (proto->Class == ITEM_CLASS_CONTAINER && proto->SubClass == ITEM_SUBCLASS_CONTAINER)
+    {
+        bool anySlotEmpty = false;
+        uint32 smallestEquipped = 0;
+        for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
+        {
+            Item* equippedBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+            if (equippedBag && equippedBag->GetTemplate())
+            {
+                uint32 const s = equippedBag->GetTemplate()->ContainerSlots;
+                if (smallestEquipped == 0 || s < smallestEquipped)
+                    smallestEquipped = s;
+            }
+            else
+            {
+                anySlotEmpty = true;
+            }
+        }
+
+        uint32 const outputSlots = proto->ContainerSlots;
+
+        if (anySlotEmpty)
+            return 12 + outputSlots;
+
+        if (outputSlots > smallestEquipped)
+            return 10 + outputSlots;
+
+        if (sPlayerbotAIConfig.auctionBagAHCap > 0)
+        {
+            uint32 const liveBags = PlayerbotAuction::CountBagListings(bot);
+            if (liveBags < sPlayerbotAIConfig.auctionBagAHCap)
+                return 6;
+        }
+
+        return 1;
+    }
+    uint32 const maxStack = proto->GetMaxStackSize();
+    uint32 const dedupAt = std::min<uint32>(maxStack, 3);
+    if (dedupAt > 1 && bot->GetItemCount(newItemId, false) >= dedupAt)
+        return 1;
+
+    // The recipe produces something the bot actively wants: an upgrade,
+    // ammo, a quest item, a profession reagent it does not yet have, a
+    // consumable it is running low on.
+    ItemUsage usage = AI_VALUE2(ItemUsage, "item usage", newItemId);
+    if (usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_AMMO ||
+        usage == ITEM_USAGE_QUEST || usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_USE)
+        return 10;
+
+    // Skill-up recipes are valuable for bots still leveling their profession.
     if (ItemUsageValue::SpellGivesSkillUp(spellInfo->Id, bot))
         return 8;
 
     return 1;
 }
+
 
 bool CastRandomSpellAction::castSpell(uint32 spellId, WorldObject* wo)
 {

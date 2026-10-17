@@ -4617,9 +4617,45 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
 
     uint32 mapId = bot->GetMapId();
     WorldPosition botPos(bot);
+    PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+
+    // Bag-vendor preference. If the bot still has any bag slot below the
+    // configured buy target, prefer a vendor that actually stocks a bag
+    // bigger than the bot's current smallest equipped container. Altbots
+    // are excluded (they are player-owned and the auction-allow-altbots
+    // gate already keeps them out of the automated AH pipeline).
+    bool preferBagVendor = false;
+    uint32 smallestBagSize = 0;
+    {
+        bool anyEmpty = false;
+        for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
+        {
+            Item* equippedBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
+            if (equippedBag && equippedBag->GetTemplate())
+            {
+                uint32 const s = equippedBag->GetTemplate()->ContainerSlots;
+                if (smallestBagSize == 0 || s < smallestBagSize)
+                    smallestBagSize = s;
+            }
+            else
+            {
+                anyEmpty = true;
+            }
+        }
+        if (anyEmpty)
+            smallestBagSize = 0;
+
+        if (botAI && sPlayerbotAIConfig.auctionEnabled && !botAI->IsAltBot() &&
+            smallestBagSize < sPlayerbotAIConfig.auctionBagBuyTarget)
+        {
+            preferBagVendor = true;
+        }
+    }
 
     NpcLocation const* best = nullptr;
     float bestSqDist = std::numeric_limits<float>::max();
+    NpcLocation const* bestBagVendor = nullptr;
+    float bestBagDistSq = std::numeric_limits<float>::max();
 
     for (auto const& npc : candidates)
     {
@@ -4636,6 +4672,75 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
             bestSqDist = sq;
             best = &npc;
         }
+
+        if (preferBagVendor)
+        {
+            VendorItemData const* vendorItems = sObjectMgr->GetNpcVendorItemList(npc.entry);
+            if (!vendorItems)
+                continue;
+
+            bool stocksBag = false;
+            for (uint32 vi = 0; vi < vendorItems->GetItemCount(); ++vi)
+            {
+                VendorItem const* item = vendorItems->GetItem(vi);
+                if (!item || !item->item)
+                    continue;
+
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item->item);
+                if (!proto || proto->Class != ITEM_CLASS_CONTAINER)
+                    continue;
+                if (proto->SubClass != ITEM_SUBCLASS_CONTAINER &&
+                    proto->SubClass != ITEM_SUBCLASS_QUIVER &&
+                    proto->SubClass != ITEM_SUBCLASS_AMMO_POUCH)
+                    continue;
+                if (proto->ContainerSlots <= smallestBagSize)
+                    continue;
+                if (bot->CanUseItem(proto) != EQUIP_ERR_OK)
+                    continue;
+
+                // Skip profession-restricted bags the bot cannot fill.
+                if (proto->BagFamily != 0)
+                {
+                    bool professionMatch = false;
+                    if ((proto->BagFamily & BAG_FAMILY_MASK_HERBS) && botAI->HasSkill(SKILL_HERBALISM))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_MINING_SUPP) && botAI->HasSkill(SKILL_MINING))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_LEATHERWORKING_SUPP) && botAI->HasSkill(SKILL_LEATHERWORKING))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_ENCHANTING_SUPP) && botAI->HasSkill(SKILL_ENCHANTING))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_ENGINEERING_SUPP) && botAI->HasSkill(SKILL_ENGINEERING))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_GEMS) && botAI->HasSkill(SKILL_JEWELCRAFTING))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_INSCRIPTION_SUPP) && botAI->HasSkill(SKILL_INSCRIPTION))
+                        professionMatch = true;
+                    else if ((proto->BagFamily & BAG_FAMILY_MASK_SOUL_SHARDS) && bot->getClass() == CLASS_WARLOCK)
+                        professionMatch = true;
+                    else if ((proto->BagFamily & (BAG_FAMILY_MASK_ARROWS | BAG_FAMILY_MASK_BULLETS)) && bot->getClass() == CLASS_HUNTER)
+                        professionMatch = true;
+
+                    if (!professionMatch)
+                        continue;
+                }
+
+                stocksBag = true;
+                break;
+            }
+
+            if (stocksBag && sq < bestBagDistSq)
+            {
+                bestBagDistSq = sq;
+                bestBagVendor = &npc;
+            }
+        }
+    }
+
+    if (preferBagVendor && bestBagVendor)
+    {
+        outVendor = *bestBagVendor;
+        return true;
     }
 
     if (!best)

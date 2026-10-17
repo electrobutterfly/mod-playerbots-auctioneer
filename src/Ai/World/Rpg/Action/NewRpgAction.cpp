@@ -532,9 +532,19 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                               "[AH-TRACE] {} relist: mailbox reached, collecting",
                               bot->GetName());
 
-                // Arrived. Collect and queue the returned items for
-                // relisting, then commit to the walk back.
+                // Arrived. Collect won bags first (they go straight to
+                // inventory and get equipped by the item-push-result
+                // handler), then collect expired-auction items for
+                // relist, then commit to the walk back.
                 data->mailboxWalkState = 2;
+
+                {
+                    std::vector<uint32> collectedWon = PlayerbotAuction::TakeWonBagMail(botAI, mailbox);
+                    if (debugAuction && !collectedWon.empty())
+                        LOG_ERROR("playerbots",
+                                  "[AH-TRACE] {} relist: collected {} won bags at mailbox",
+                                  bot->GetName(), collectedWon.size());
+                }
 
                 std::vector<uint32> mailEntries;
                 if (PlayerbotAuction::BotHasExpiredAuctionMail(bot, mailEntries))
@@ -769,44 +779,63 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
             // Get MAIL AUCTION returned mail
             std::vector<uint32> mailEntries;
-            if (PlayerbotAuction::BotHasExpiredAuctionMail(bot, mailEntries))
+            bool const hasExpired = PlayerbotAuction::BotHasExpiredAuctionMail(bot, mailEntries);
+            bool const hasWonBags = PlayerbotAuction::BotHasUncollectedWonBags(bot);
+            uint32 const wonBagCount = hasWonBags ? PlayerbotAuction::CountUncollectedWonBags(bot) : 0;
+
+            if (hasExpired || hasWonBags)
             {
                 if (debugAuction)
                 {
                     LOG_ERROR("playerbots",
-                              "[AH-TRACE] {} relist: {} returned items in mail",
-                              bot->GetName(), mailEntries.size());
+                              "[AH-TRACE] {} relist: {} returned items, {} won bags in mail",
+                              bot->GetName(), mailEntries.size(), wonBagCount);
                 }
 
                 ObjectGuid mailbox = PlayerbotAuction::FindMailboxInRange(botAI);
+                uint32 const totalNeeded = mailEntries.size() + wonBagCount;
                 if (mailbox.IsEmpty())
                 {
                     // Not in range. Commit to the mailbox walk if there is
-                    // enough bag space to hold the returned items. The
-                    // mailboxWalkState sub-state takes over on the next tick
-                    // and bypasses the auctioneer-approach and HELLO logic
-                    // until the round trip completes or fails.
+                    // enough bag space to hold the returned items and the
+                    // won bags together. The mailboxWalkState sub-state
+                    // takes over on the next tick and bypasses the
+                    // auctioneer-approach and HELLO logic until the round
+                    // trip completes or fails.
                     uint32 freeSlots = PlayerbotAuction::CountFreeBagSlots(bot);
-                    if (freeSlots < mailEntries.size())
+                    if (freeSlots < totalNeeded)
                     {
                         if (debugAuction)
                             LOG_ERROR("playerbots",
                                       "[AH-TRACE] {} relist: bag space insufficient "
                                       "(need {} slots, have {}), skipping this visit",
-                                      bot->GetName(), mailEntries.size(), freeSlots);
+                                      bot->GetName(), totalNeeded, freeSlots);
                         return false;
                     }
 
                     if (debugAuction)
                         LOG_ERROR("playerbots",
-                                  "[AH-TRACE] {} relist: {} returned items, walking to mailbox",
-                                  bot->GetName(), mailEntries.size());
+                                  "[AH-TRACE] {} relist: {} returned items + {} won bags, walking to mailbox",
+                                  bot->GetName(), mailEntries.size(), wonBagCount);
 
                     data->mailboxWalkState = 1;
                     return true;
                 }
                 else
                 {
+                    // Collect won bags first - they go straight to inventory
+                    // and get equipped by the item-push-result handler.
+                    // Expired-auction items are collected next and queued
+                    // for relist as before.
+                    if (hasWonBags)
+                    {
+                        std::vector<uint32> collectedWon = PlayerbotAuction::TakeWonBagMail(botAI, mailbox);
+                        if (debugAuction && !collectedWon.empty())
+                            LOG_ERROR("playerbots",
+                                      "[AH-TRACE] {} relist: collected {} won bags from mailbox",
+                                      bot->GetName(), collectedWon.size());
+                    }
+
                     std::vector<uint32> collected = PlayerbotAuction::TakeExpiredAuctionMail(botAI, mailbox);
 
                     if (!collected.empty())

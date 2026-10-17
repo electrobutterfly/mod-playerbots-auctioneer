@@ -26,11 +26,14 @@
 #include "Item.h"
 #include "Mail.h"
 #include "ObjectAccessor.h"
+#include "ObjectMgr.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
 #include "Playerbots.h"
+#include "Timer.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
+#include <mutex>
 
 namespace PlayerbotAuction
 {
@@ -137,6 +140,71 @@ uint32 CountActiveListings(Player* bot)
                 ++count;
         }
     }
+    return count;
+}
+
+namespace
+{
+    // Per-faction cache for CountBagListings. Two slots, indexed by
+    // TeamId (0 = Alliance, 1 = Horde). The count is refreshed at most
+    // once per BAG_COUNT_CACHE_TTL_MS, so 2000 bots evaluating bag
+    // priority do not each walk the AH map on every craft pass.
+    struct BagCountCacheEntry
+    {
+        uint32 count = 0;
+        uint32 lastUpdateMs = 0;
+        bool valid = false;
+    };
+
+    BagCountCacheEntry bagCountCache[2];
+    std::mutex bagCountCacheMutex;
+
+    constexpr uint32 BAG_COUNT_CACHE_TTL_MS = 60 * 1000;
+}
+
+uint32 CountBagListings(Player* bot)
+{
+    if (!bot)
+        return 0;
+
+    TeamId const team = bot->GetTeamId();
+    if (team != TEAM_ALLIANCE && team != TEAM_HORDE)
+        return 0;
+
+    uint32 const teamIdx = (team == TEAM_HORDE) ? 1 : 0;
+    uint32 const now = getMSTime();
+
+    {
+        std::lock_guard<std::mutex> lock(bagCountCacheMutex);
+        BagCountCacheEntry const& c = bagCountCache[teamIdx];
+        if (c.valid && (now - c.lastUpdateMs) < BAG_COUNT_CACHE_TTL_MS)
+            return c.count;
+    }
+
+    uint32 count = 0;
+    if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction()))
+    {
+        for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)
+        {
+            AuctionEntry* entry = it->second;
+            if (!entry)
+                continue;
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry->item_template);
+            if (!proto)
+                continue;
+            if (proto->Class == ITEM_CLASS_CONTAINER && proto->SubClass == ITEM_SUBCLASS_CONTAINER)
+                ++count;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(bagCountCacheMutex);
+        BagCountCacheEntry& c = bagCountCache[teamIdx];
+        c.count = count;
+        c.lastUpdateMs = now;
+        c.valid = true;
+    }
+
     return count;
 }
 
