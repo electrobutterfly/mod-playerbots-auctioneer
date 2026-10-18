@@ -519,7 +519,7 @@ Playerbots.Auction.ExcludeVendorSoldItems = 1
 #   7005  Skinning Knife
 #
 # Default: "2901,5956,6219,16207,7005"
-Playerbots.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005,19194,19428,19456,32914,37611"
+Playerbots.Auction.ExcludedItemIds = "2901,5956,6219,16207,7005,19194,19428,19456,24071,32914,37611"
 
 ####################################################################################################
 # 4.4 Relist and Returned Auctions

@@ -267,6 +267,19 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
 
             if (!hasProfession)
                 return ITEM_USAGE_NONE;
+
+            // Cap at one equipped bag per family. The buy path already
+            // enforces this via BuyContainerAction::HasBagOfFamily(); the
+            // loot / equip path did not, so a Herbalist could end up with up
+            // to four herb bags if the RNG handed them out in increasing
+            // sizes.
+            for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+            {
+                Item* existingBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot);
+                if (existingBag && existingBag->GetTemplate() &&
+                    existingBag->GetTemplate()->BagFamily == itemProto->BagFamily)
+                    return ITEM_USAGE_NONE;
+            }
         }
 
         if (GetSmallestBagSize() >= itemProto->ContainerSlots)
@@ -283,6 +296,32 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
                 return ITEM_USAGE_AH;
             }
             return ITEM_USAGE_NONE;
+        }
+
+        // Don't let a bigger regular bag displace a Hunter's quiver when all
+        // four slots are already occupied. GetSmallestBagSize() includes the
+        // quiver, and EquipAction::GetSmallestBagSlot() would target the
+        // quiver's slot (it is the smallest), so without this guard a plain
+        // bag displaces the quiver. If any slot is empty, the bag fits there
+        // without displacing anything.
+        {
+            Item* smallestBag = nullptr;
+            bool hasEmptySlot = false;
+            for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+            {
+                Item* existingBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot);
+                if (!existingBag)
+                {
+                    hasEmptySlot = true;
+                    break;
+                }
+                if (!smallestBag ||
+                    existingBag->GetTemplate()->ContainerSlots < smallestBag->GetTemplate()->ContainerSlots)
+                    smallestBag = existingBag;
+            }
+            if (!hasEmptySlot && smallestBag &&
+                smallestBag->GetTemplate()->Class == ITEM_CLASS_QUIVER)
+                return ITEM_USAGE_NONE;
         }
 
         return ITEM_USAGE_EQUIP;
