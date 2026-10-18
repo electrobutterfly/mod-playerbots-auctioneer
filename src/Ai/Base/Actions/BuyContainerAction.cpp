@@ -19,6 +19,7 @@
 
 #include "BuyContainerAction.h"
 #include "AiObjectContext.h"
+#include "AuctionBidTracker.h"
 #include "AuctionHelpers.h"
 #include "AuctionHouseMgr.h"
 #include "AuctionMailAdvisor.h"
@@ -382,6 +383,14 @@ bool BuyContainerAction::BuyContainerFromAuctioneer(Creature* auctioneer)
     if (buyBudget == 0)
         return false;
 
+    // AllowBuyout == 0 means "bid only". The bot still wants bags from the
+    // AH, it just should not purchase them outright. In bid mode we bid at
+    // the current asking price (startbid, or current bid + outbid), cap the
+    // bid strictly below buyout (a bid >= buyout is promoted to a buyout by
+    // the core), register the bid for tracked defence, and stop after one
+    // successful bid so the same visit does not stack bids on the same
+    // auction.
+    bool const allowBuyout = sPlayerbotAIConfig.auctionAllowBuyout;
     uint32 bought = 0;
 
     for (uint32 iter = 0; iter < buyBudget; ++iter)
@@ -401,7 +410,14 @@ bool BuyContainerAction::BuyContainerFromAuctioneer(Creature* auctioneer)
             if (entry->owner == bot->GetGUID())
                 continue;
 
-            if (entry->buyout == 0)
+            // Buyout mode requires a buyout to be listed. Bid mode does not:
+            // a bag listed bid-only is a legitimate target.
+            if (allowBuyout && entry->buyout == 0)
+                continue;
+
+            // Bid mode: skip listings where the bot is already the highest
+            // bidder. Tracked-bid defence handles them on the next visit.
+            if (!allowBuyout && entry->bidder == bot->GetGUID())
                 continue;
 
             ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry->item_template);
@@ -422,7 +438,27 @@ bool BuyContainerAction::BuyContainerFromAuctioneer(Creature* auctioneer)
             if (bot->CanUseItem(proto) != EQUIP_ERR_OK)
                 continue;
 
-            uint32 const price = entry->buyout;
+            uint32 price = 0;
+            if (allowBuyout)
+            {
+                price = entry->buyout;
+            }
+            else
+            {
+                if (entry->bid == 0)
+                    price = entry->startbid;
+                else
+                    price = entry->bid + entry->GetAuctionOutBid();
+
+                // A bid at or above buyout is promoted into a buyout by the
+                // core. Skip the listing rather than place a bid the
+                // operator has disabled buyouts to prevent.
+                if (entry->buyout != 0 && price >= entry->buyout)
+                    continue;
+            }
+
+            if (price == 0)
+                continue;
 
             if (!botAI->HasCheat(BotCheatMask::gold) && price > bot->GetMoney())
                 continue;
@@ -438,16 +474,70 @@ bool BuyContainerAction::BuyContainerFromAuctioneer(Creature* auctioneer)
         if (!bestAuction)
             break;
 
-        PlayerbotAuction::SendPlaceBid(bot, auctioneer, bestAuction->Id, bestAuction->buyout);
+        if (allowBuyout)
+        {
+            PlayerbotAuction::SendPlaceBid(bot, auctioneer, bestAuction->Id, bestAuction->buyout);
 
-        LOG_DEBUG("playerbots",
-                  "[BAG] {} buying out [{}] ({} slots) from AH for {} copper (auctionId={})",
-                  bot->GetName(), bestAuction->item_template, bestSlots,
-                  bestAuction->buyout, bestAuction->Id);
+            LOG_DEBUG("playerbots",
+                      "[BAG] {} buying out [{}] ({} slots) from AH for {} copper (auctionId={})",
+                      bot->GetName(), bestAuction->item_template, bestSlots,
+                      bestAuction->buyout, bestAuction->Id);
 
-        slotSizes[0] = bestSlots;
-        std::sort(slotSizes.begin(), slotSizes.end());
-        ++bought;
+            slotSizes[0] = bestSlots;
+            std::sort(slotSizes.begin(), slotSizes.end());
+            ++bought;
+        }
+        else
+        {
+            PlayerbotAuction::SendPlaceBid(bot, auctioneer, bestAuction->Id, bestPrice);
+
+            // Cap defensive re-bids below buyout when it exists, otherwise
+            // at current gold. The re-bid pass in NewRpgAction adds
+            // GetAuctionOutBid() per loss; anything >= buyout would trigger
+            // a buyout there, and it is rejected before SendPlaceBid there
+            // already. maxWilling here is the same ceiling so the initial
+            // bid and every defensive re-bid follow the same rule.
+            uint32 const maxWilling = bestAuction->buyout != 0
+                ? bestAuction->buyout - 1
+                : (botAI->HasCheat(BotCheatMask::gold) ? ~0u : bot->GetMoney());
+
+            if (sPlayerbotAIConfig.auctionMaxTrackedBids > 0)
+            {
+                bool alreadyTracked = false;
+                for (auto const& ta : botAI->trackedAuctions)
+                    if (ta.auctionId == bestAuction->Id) { alreadyTracked = true; break; }
+
+                if (!alreadyTracked)
+                {
+                    while (botAI->trackedAuctions.size() >= sPlayerbotAIConfig.auctionMaxTrackedBids)
+                    {
+                        PlayerbotAuction::RemoveTrackedBid(botAI, botAI->trackedAuctions.front().auctionId);
+                        botAI->trackedAuctions.erase(botAI->trackedAuctions.begin());
+                    }
+
+                    PlayerbotAI::TrackedAuction ta;
+                    ta.auctionId      = bestAuction->Id;
+                    ta.itemTemplateId = bestAuction->item_template;
+                    ta.itemCount      = bestAuction->itemCount;
+                    ta.maxWilling     = maxWilling;
+                    ta.trackedSince   = time(nullptr);
+
+                    botAI->trackedAuctions.push_back(ta);
+                    PlayerbotAuction::UpsertTrackedBid(botAI, ta);
+                }
+            }
+
+            LOG_DEBUG("playerbots",
+                      "[BAG] {} bidding [{}] ({} slots) on AH at {} copper, max {} (auctionId={})",
+                      bot->GetName(), bestAuction->item_template, bestSlots,
+                      bestPrice, maxWilling, bestAuction->Id);
+
+            // The bag arrives by mail when the auction expires and the bot
+            // wins. Do not advance slotSizes; the next visit's tracked-bid
+            // pass and mailbox walk handle defence and collection.
+            ++bought;
+            break;
+        }
     }
 
     return bought > 0;
