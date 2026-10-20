@@ -13,16 +13,16 @@ concurrency:
 jobs:
   build:
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - os: ubuntu-24.04
-            c_compiler: clang
-            cpp_compiler: clang++
-            build_type: Release
-          - os: ubuntu-24.04
             c_compiler: gcc
             cpp_compiler: g++
+            build_type: Release
+          - os: ubuntu-24.04
+            c_compiler: clang
+            cpp_compiler: clang++
             build_type: Release
 
     runs-on: ${{ matrix.os }}
@@ -30,20 +30,23 @@ jobs:
 
     steps:
       - name: Checkout AzerothCore (electrobutterfly playerbots fork)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'electrobutterfly/azerothcore-wotlk-playerbots'
           ref: 'Playerbot'
-          submodules: 'recursive'
 
       - name: Checkout your module into modules/
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: 'electrobutterfly/mod-playerbots-auctioneer'
           path: 'modules/mod-playerbots-auctioneer'
 
       - name: Install requirements
         run: |
+          # Microsoft's apt mirror (pre-configured on the runner) intermittently
+          # returns 403, which aborts apt-get update with exit code 100.
+          # Remove it before updating; we don't need any Microsoft packages.
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
           sudo apt-get install -y ccache git cmake make gcc g++ clang \
             libmysqlclient-dev libssl-dev libbz2-dev libreadline-dev \
