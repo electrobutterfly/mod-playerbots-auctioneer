@@ -67,6 +67,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -101,6 +102,53 @@ MIN_RECORD_FIELDS = 27
 MIN_RELIABLE_BID_SAMPLES  = 10
 MIN_CLASS_PRIOR_ROWS      = 100
 GLOBAL_BID_RATIO_FALLBACK = 9400  # basis points
+
+
+# --------------------------------------------------------------------
+# Logging
+#
+# One line per event, appended to the log file and mirrored to stderr.
+# stdlib only. No `logging` module. Format:
+#
+#     YYYY-MM-DD HH:MM:SS [LEVEL] message
+#
+# LEVEL is one of INFO, WARN, ERROR. Errors go to stderr regardless of
+# whether the log file is openable, so a bad path does not suppress the
+# reason the run failed.
+# --------------------------------------------------------------------
+
+_LOG_FILE_HANDLE = None
+
+
+def _open_log_file(path: str) -> None:
+    global _LOG_FILE_HANDLE
+    if _LOG_FILE_HANDLE is not None:
+        return
+    if not path:
+        return
+    try:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        _LOG_FILE_HANDLE = open(path, "a", encoding="utf-8", buffering=1)
+    except OSError as e:
+        print(f"{_ts()} [WARN] cannot open log file {path}: {e}",
+              file=sys.stderr)
+        _LOG_FILE_HANDLE = None
+
+
+def _ts() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def log(level: str, message: str) -> None:
+    line = f"{_ts()} [{level}] {message}"
+    print(line, file=sys.stderr)
+    if _LOG_FILE_HANDLE is not None:
+        try:
+            _LOG_FILE_HANDLE.write(line + "\n")
+        except OSError:
+            pass
 
 
 # --------------------------------------------------------------------
@@ -396,12 +444,11 @@ def parse_lua_file(path: Path, b: Buckets, item_lookup: dict) -> int:
     text = path.read_bytes()
     ropes = extract_ropes(text)
     if not ropes:
-        print(f"  warning: no ropes found in {path.name}", file=sys.stderr)
+        log("WARN", f"  no ropes found in {path.name}")
         return 0
     for rope, faction in ropes:
         if faction == UNKNOWN:
-            print(f"  warning: no faction above a rope in {path.name}",
-                  file=sys.stderr)
+            log("WARN", f"  no faction above a rope in {path.name}")
         accumulate_rope(rope, faction, b, item_lookup)
     return len(ropes)
 
@@ -764,8 +811,9 @@ def fetch_history(db_cfg: dict) -> dict:
             "FROM auctioneer_baseline_history "
             "ORDER BY faction, item_id, suffix, snapshot_time")
     except Exception as e:
-        print(f"  note: history table not readable ({e}); "
-              f"trend will default to 0 for this run", file=sys.stderr)
+        log("WARN",
+            f"  history table not readable ({e}); "
+            f"trend defaults to 0 for this run")
         return {}
 
     series = defaultdict(list)
@@ -794,6 +842,20 @@ def now_tag() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d_%H")
 
 
+def _timed(label: str, fn, args, cfg) -> None:
+    t0 = time.monotonic()
+    try:
+        fn(args, cfg)
+    except SystemExit:
+        raise
+    except Exception as e:
+        elapsed = time.monotonic() - t0
+        log("ERROR", f"{label} failed in {elapsed:.1f}s: {e}")
+        raise
+    elapsed = time.monotonic() - t0
+    log("INFO", f"{label} finished ok in {elapsed:.1f}s")
+
+
 def cmd_schema(_args, _cfg) -> None:
     sys.stdout.write(SCHEMA_SQL)
 
@@ -809,7 +871,7 @@ def cmd_download(args, cfg) -> None:
     for name, url in (("horde",    cfg["horde_url"]),
                       ("alliance", cfg["alliance_url"])):
         dest = scans / f"{name}_{tag}.lua"
-        print(f"downloading {name} -> {dest.name}", file=sys.stderr)
+        log("INFO", f"downloading {name} -> {dest.name}")
         req = urllib.request.Request(
             url, headers={"User-Agent": "mod-playerbots auctioneer baseline"})
         with urllib.request.urlopen(req, timeout=180) as r, dest.open("wb") as f:
@@ -818,7 +880,7 @@ def cmd_download(args, cfg) -> None:
                 if not chunk:
                     break
                 f.write(chunk)
-        print(f"  {dest.stat().st_size / 1e6:.1f} MB", file=sys.stderr)
+        log("INFO", f"  {dest.stat().st_size / 1e6:.1f} MB")
 
 
 def cmd_parse(args, cfg) -> None:
@@ -828,55 +890,54 @@ def cmd_parse(args, cfg) -> None:
 
     lua_files = sorted(scans.glob("*.lua"))
     if not lua_files:
-        sys.exit(f"no .lua files in {scans}. Run `download` first.")
+        log("ERROR", f"no .lua files in {scans}. Run `download` first.")
+        sys.exit(1)
 
-    print("loading item_template from world db...", file=sys.stderr)
+    log("INFO", "loading item_template from world db...")
     item_lookup = fetch_item_lookup(cfg["world"])
-    print(f"  {len(item_lookup)} items", file=sys.stderr)
+    log("INFO", f"  {len(item_lookup)} items")
 
     b = Buckets()
     for lua in lua_files:
-        print(f"parsing {lua.name}...", file=sys.stderr)
+        log("INFO", f"parsing {lua.name}...")
         n_ropes = parse_lua_file(lua, b, item_lookup)
-        print(f"  {n_ropes} rope blocks", file=sys.stderr)
+        log("INFO", f"  {n_ropes} rope blocks")
 
-    print("computing class priors for bid-ratio fallback...", file=sys.stderr)
+    log("INFO", "computing class priors for bid-ratio fallback...")
     class_priors = compute_class_priors(b, item_lookup)
-    print(f"  {len(class_priors)} (faction, class) pairs", file=sys.stderr)
+    log("INFO", f"  {len(class_priors)} (faction, class) pairs")
 
-    print("reading historical snapshots for trend computation...", file=sys.stderr)
+    log("INFO", "reading historical snapshots for trend computation...")
     history = fetch_history(cfg["character"])
-    print(f"  {len(history)} items with history", file=sys.stderr)
+    log("INFO", f"  {len(history)} items with history")
 
     item_rows = list(build_item_rows(b, item_lookup, class_priors, history, tag))
     cat_rows  = list(build_category_rows(b, tag))
 
-    print(f"writing {out_path} "
-          f"({len(item_rows)} items, {len(cat_rows)} categories)...",
-          file=sys.stderr)
+    log("INFO", f"writing {out_path} "
+                f"({len(item_rows)} items, {len(cat_rows)} categories)...")
     retention = cfg.get("history_retention_days", 90)
     with out_path.open("w", encoding="utf-8") as f:
         write_sql(f, item_rows, cat_rows, tag, retention)
-    print(f"  {out_path.stat().st_size / 1e6:.1f} MB, snapshot {tag}",
-          file=sys.stderr)
+    log("INFO", f"  {out_path.stat().st_size / 1e6:.1f} MB, snapshot {tag}")
 
 
 def cmd_insert(args, cfg) -> None:
     sql_path = Path(args.work_dir) / "baseline.sql"
     if not sql_path.is_file():
-        sys.exit(f"no {sql_path}. Run `parse` first.")
+        log("ERROR", f"no {sql_path}. Run `parse` first.")
+        sys.exit(1)
 
-    print(f"inserting {sql_path} into {cfg['character']['database']}...",
-          file=sys.stderr)
+    log("INFO", f"inserting {sql_path} into {cfg['character']['database']}...")
     sql_text = sql_path.read_text(encoding="utf-8")
     mysql_run_sql_file(cfg["character"], sql_text)
-    print("done.", file=sys.stderr)
+    log("INFO", "done.")
 
 
 def cmd_run(args, cfg) -> None:
-    cmd_download(args, cfg)
-    cmd_parse(args, cfg)
-    cmd_insert(args, cfg)
+    _timed("download", cmd_download, args, cfg)
+    _timed("parse",    cmd_parse,    args, cfg)
+    _timed("insert",   cmd_insert,   args, cfg)
 
 
 def cmd_clean(args, _cfg) -> None:
@@ -884,11 +945,11 @@ def cmd_clean(args, _cfg) -> None:
     if scans.is_dir():
         for old in scans.glob("*.lua"):
             old.unlink()
-            print(f"removed {old}", file=sys.stderr)
+            log("INFO", f"removed {old}")
     sql = Path(args.work_dir) / "baseline.sql"
     if sql.is_file():
         sql.unlink()
-        print(f"removed {sql}", file=sys.stderr)
+        log("INFO", f"removed {sql}")
 
 
 # --------------------------------------------------------------------
@@ -922,6 +983,9 @@ def load_config(path: str) -> dict:
             "database": resolve(name, "database"),
         }
 
+    def optional(section: str, key: str):
+        return p.get(section, key, fallback=None)
+
     return {
         "world":        db_section("world"),
         "character":    db_section("character"),
@@ -929,6 +993,8 @@ def load_config(path: str) -> dict:
         "alliance_url": p.get("source", "alliance_url"),
         "history_retention_days":
             int(p.get("history", "retention_days", fallback="90")),
+        "log_file":     optional("paths", "log_file"),
+        "work_dir":     optional("paths", "work_dir"),
     }
 
 
@@ -953,25 +1019,33 @@ def main() -> None:
 
     cfg = load_config(args.config)
 
-    if args.work_dir:
-        work_dir = args.work_dir
-    else:
-        p = configparser.ConfigParser()
-        p.read(args.config)
-        work_dir = p.get("paths", "work_dir",
-                         fallback="/var/lib/auctioneer-baseline")
+    work_dir = (args.work_dir
+                or cfg["work_dir"]
+                or "/var/lib/auctioneer-baseline")
     args.work_dir = work_dir
 
-    if args.command == "run":
-        cmd_run(args, cfg)
-    elif args.command == "download":
-        cmd_download(args, cfg)
-    elif args.command == "parse":
-        cmd_parse(args, cfg)
-    elif args.command == "insert":
-        cmd_insert(args, cfg)
-    elif args.command == "clean":
-        cmd_clean(args, cfg)
+    log_file = cfg["log_file"]
+    if not log_file:
+        log_file = os.path.join(work_dir, "auctioneer.log")
+    elif not os.path.isabs(log_file):
+        log_file = os.path.join(work_dir, log_file)
+    _open_log_file(log_file)
+
+    t0 = time.monotonic()
+    try:
+        if args.command == "run":
+            _timed("run", cmd_run, args, cfg)
+        elif args.command == "download":
+            _timed("download", cmd_download, args, cfg)
+        elif args.command == "parse":
+            _timed("parse", cmd_parse, args, cfg)
+        elif args.command == "insert":
+            _timed("insert", cmd_insert, args, cfg)
+        elif args.command == "clean":
+            _timed("clean", cmd_clean, args, cfg)
+    finally:
+        elapsed = time.monotonic() - t0
+        log("INFO", f"exit in {elapsed:.1f}s (command={args.command})")
 
 
 if __name__ == "__main__":

@@ -61,8 +61,15 @@ alliance_url = https://ah.nerfed.net/realm/getfile?id=14&faction=2
 # Default: 90
 retention_days = 90
 
-
 [paths]
 # Where the downloaded Lua files and the intermediate baseline.sql go.
 # Must exist and be writable by the user running the script.
 work_dir = /var/lib/auctioneer-baseline
+
+
+# Log file the script appends to. One line per event, timestamped,
+# appended across runs. If the path is a relative path it is resolved
+# against work_dir. If the key is missing, defaults to
+# <work_dir>/auctioneer.log. The parent directory must exist and be
+# writable by the user running the script.
+log_file = /var/lib/auctioneer-baseline/auctioneer.log
