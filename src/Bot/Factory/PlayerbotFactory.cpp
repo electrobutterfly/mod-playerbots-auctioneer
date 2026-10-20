@@ -4114,9 +4114,22 @@ void PlayerbotFactory::InitAmmo()
 
     DestroyObsoleteAmmo(bot, ammoProto);
 
-    uint32 count = bot->GetItemCount(entry);
-    uint32 maxCount = botClass == CLASS_HUNTER ? 6000 : 1000;
+    // Seed enough stacks to exceed the keep threshold in
+    // ItemUsageValue::QueryItemUsageForAmmo, otherwise the bot classifies
+    // its entire ammo stock as ITEM_USAGE_AMMO / ITEM_USAGE_KEEP, which
+    // IsUsageProtected in AuctionSellAdvisor.cpp treats as "not for sale".
+    //
+    // Hunters need > 8 stacks to have surplus; other ranged classes need
+    // > 2. Using a fixed stack count rather than a fixed item count keeps
+    // this correct across WotLK (1000/stack), TBC (200/stack) and
+    // vanilla (200/stack) ammo, where the previous 6000 hardcode was
+    // 6 stacks for WotLK (below the 8-stack keep threshold, so nothing to
+    // sell) and 30 stacks for vanilla (fine, but accidental).
+    uint32 const maxStack = ammoProto->GetMaxStackSize();
+    uint32 const stacksToSeed = (botClass == CLASS_HUNTER) ? 12 : 4;
+    uint32 const maxCount = maxStack > 0 ? maxStack * stacksToSeed : 6000;
 
+    uint32 const count = bot->GetItemCount(entry);
     if (count < maxCount)
     {
         // Stock as much as fits: each stack destroyed above has freed a slot for a full stack of the new ammo
@@ -4128,7 +4141,6 @@ void PlayerbotFactory::InitAmmo()
                 newItem->AddToUpdateQueueOf(bot);
         }
     }
-
     bot->SetAmmo(entry);
 }
 
@@ -4591,6 +4603,32 @@ void PlayerbotFactory::InitReagents()
 
         if (threadId != 0)
             items.push_back({threadId, 6});
+    }
+
+    // Alchemy vial seeding. Every alchemy recipe (healing/mana potions,
+    // elixirs, flasks, item transmutes) requires a vial alongside the
+    // herbs. Without vials in inventory the recipe is not castable (the
+    // fork's CanCastSpell uses checkReagents = true), so CraftRandomItemAction
+    // excludes every alchemy recipe from the picker and the bot population
+    // produces zero potions, elixirs and flasks, which is exactly what was
+    // observed on the AH (herbs listed, no finished alchemy products).
+    // Seed a stock of the tier-appropriate vial so alchemy bots can
+    // actually craft. Altbots excluded, same reason as tailoring.
+    if (sRandomPlayerbotMgr.IsRandomBot(bot) && bot->HasSkill(SKILL_ALCHEMY))
+    {
+        uint32 const alchemySkill = bot->GetSkillValue(SKILL_ALCHEMY);
+        uint32 vialId = 0;
+        if (alchemySkill >= 375)
+            vialId = 41615;  // Imbued Vial (WotLK)
+        else if (alchemySkill >= 200)
+            vialId = 8925;   // Crystal Vial
+        else if (alchemySkill >= 100)
+            vialId = 3372;   // Lead Vial
+        else if (alchemySkill >= 1)
+            vialId = 3371;   // Empty Vial
+
+        if (vialId != 0)
+            items.push_back({vialId, 20});
     }
 
     for (std::pair item : items)

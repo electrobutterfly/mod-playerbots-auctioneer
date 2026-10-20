@@ -153,25 +153,14 @@ ItemUsage ItemUsageValue::Calculate()
     {
         if (proto->Quality >= ITEM_QUALITY_NORMAL && !isSoulbound && proto->Bonding != BIND_WHEN_PICKED_UP)
         {
-            // Add Auctioneer
-            // Only classify as AH if the seller would actually accept it. Prevents
-            // items that FindItemToSell would reject from being frozen in bags by
-            // the SellVendorItemsVisitor / SmartDestroyItemAction protection patches.
+            bool const sellValueTooLow =
+                proto->SellPrice < sPlayerbotAIConfig.auctionMinSellValueCopper &&
+                proto->Class != ITEM_CLASS_CONSUMABLE &&
+                proto->Class != ITEM_CLASS_PROJECTILE;
             bool const vendorFodder =
                 sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
-                (proto->Quality < sPlayerbotAIConfig.auctionMinSellQuality ||
-                 proto->SellPrice < sPlayerbotAIConfig.auctionMinSellValueCopper);
+                (proto->Quality < sPlayerbotAIConfig.auctionMinSellQuality || sellValueTooLow);
 
-            // Add Auctioneer
-            // If this bot has exhausted its relist budget for this item, the
-            // auction house has effectively rejected it. Classify as vendor
-            // trash so the vendor path can take it, and if SellPrice is zero
-            // the destroy path will handle it. Without this, an exhausted item
-            // sits in bags forever: the sell filters exclude it and the destroy
-            // filters skip it while it is still AH-classified. The underlying
-            // retry counter expires after MaxRandomBotInWorldTime, so a bot
-            // that later loots a fresh stack of the same item ID is not
-            // permanently punished.
             bool const auctionExhausted =
                 sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
                 sPlayerbotAIConfig.auctionMaxRelistRetries > 0 &&
@@ -179,7 +168,24 @@ ItemUsage ItemUsageValue::Calculate()
                 sRandomPlayerbotMgr.GetValue(bot, "auction.relist." + std::to_string(proto->ItemId)) >=
                     sPlayerbotAIConfig.auctionMaxRelistRetries;
 
-            if (vendorFodder || auctionExhausted)
+            // Baseline-reject exhaustion: the per-item cap, the category cap,
+            // or the excluded-item list has rejected this item Auction.
+            // Baseline.MaxRejects times at sell-queue build time. Reclassify
+            // the item as vendor trash so the vendor pipeline can pick it up
+            // instead of letting it accumulate in bags forever. Only
+            // meaningful in Mode 2; the counter never increments in Mode 1.
+            // The counter itself is incremented in NewRpgAction.cpp and
+            // reset on successful AH listing.
+            bool const baselineExhausted =
+                sPlayerbotAIConfig.auctionEnabled && sPlayerbotAIConfig.auctionEnableSelling &&
+                sPlayerbotAIConfig.auctionBaselineMode == 2 &&
+                sPlayerbotAIConfig.auctionMaxBaselineRejects > 0 &&
+                bot && sRandomPlayerbotMgr.IsRandomBot(bot) &&
+                sRandomPlayerbotMgr.GetValue(bot, "auction.baselineReject." +
+                                             std::to_string(proto->ItemId)) >=
+                    sPlayerbotAIConfig.auctionMaxBaselineRejects;
+
+            if (vendorFodder || auctionExhausted || baselineExhausted)
                 return ITEM_USAGE_VENDOR;
             return ITEM_USAGE_AH;
         }
@@ -230,14 +236,8 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
         // If not equipped, continue processing
     }
 
-    if (itemProto->Class == ITEM_CLASS_QUIVER && bot->getClass() != CLASS_HUNTER)
-        return ITEM_USAGE_NONE;
-
-    if (itemProto->Class == ITEM_CLASS_CONTAINER)
+    if (itemProto->Class == ITEM_CLASS_CONTAINER && itemProto->SubClass == ITEM_SUBCLASS_CONTAINER)
     {
-        if (itemProto->SubClass != ITEM_SUBCLASS_CONTAINER)
-            return ITEM_USAGE_NONE;
-
         // Profession-restricted bags (herb pouch, mining bag, enchanting
         // bag, etc.) are useless to a bot without the matching profession.
         // Reject them here so loot / buy pipelines never treat them as
@@ -296,32 +296,6 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
                 return ITEM_USAGE_AH;
             }
             return ITEM_USAGE_NONE;
-        }
-
-        // Don't let a bigger regular bag displace a Hunter's quiver when all
-        // four slots are already occupied. GetSmallestBagSize() includes the
-        // quiver, and EquipAction::GetSmallestBagSlot() would target the
-        // quiver's slot (it is the smallest), so without this guard a plain
-        // bag displaces the quiver. If any slot is empty, the bag fits there
-        // without displacing anything.
-        {
-            Item* smallestBag = nullptr;
-            bool hasEmptySlot = false;
-            for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
-            {
-                Item* existingBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, bagSlot);
-                if (!existingBag)
-                {
-                    hasEmptySlot = true;
-                    break;
-                }
-                if (!smallestBag ||
-                    existingBag->GetTemplate()->ContainerSlots < smallestBag->GetTemplate()->ContainerSlots)
-                    smallestBag = existingBag;
-            }
-            if (!hasEmptySlot && smallestBag &&
-                smallestBag->GetTemplate()->Class == ITEM_CLASS_QUIVER)
-                return ITEM_USAGE_NONE;
         }
 
         return ITEM_USAGE_EQUIP;
@@ -419,15 +393,6 @@ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, 
             // uint32 oldStatWeight = sRandomItemMgr.GetLiveStatWeight(bot, oldItemProto->ItemId);
             if (itemScore || oldScore)
                 shouldEquipInSlot = itemScore > oldScore * sPlayerbotAIConfig.EquipUpgradeThreshold;
-        }
-
-        // Bigger quiver
-        if (itemProto->Class == ITEM_CLASS_QUIVER)
-        {
-            if (!oldItem || oldItemProto->ContainerSlots < itemProto->ContainerSlots)
-                return ITEM_USAGE_EQUIP;
-            else
-                return ITEM_USAGE_NONE;
         }
 
         bool existingShouldEquip = true;

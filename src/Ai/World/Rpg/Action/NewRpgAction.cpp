@@ -1167,8 +1167,6 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                 }
             }
 
-            // Combined baseline policy: craft reserve, category depth,
-            // per-item cap. Mode 1 and missing baseline rows pass through.
             if (!PlayerbotAuction::ShouldListGivenBaselinePolicy(
                     bot, toSell, data->protectedReagentIds))
             {
@@ -1178,6 +1176,34 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
                               "[AH-TRACE] {} skipping [{}] x{}: baseline policy rejected",
                               bot->GetName(), toSell->GetEntry(),
                               toSell->GetCount());
+                }
+
+                // Increment the per-bot per-item baseline-reject counter,
+                // unless the rejection is due to the craft-arbitrage reagent
+                // reserve. Reagent holds mean "intentionally kept for a
+                // future craft", not "AH has no room", so they must not
+                // push the item toward the vendor fallback. When the counter
+                // reaches Auction.Baseline.MaxRejects, ItemUsageValue
+                // classifies the item as VENDOR and the vendor pipeline
+                // clears it on the next vendor visit.
+                bool isProtectedReagent = false;
+                for (uint32 const rid : data->protectedReagentIds)
+                {
+                    if (rid == toSell->GetEntry())
+                    {
+                        isProtectedReagent = true;
+                        break;
+                    }
+                }
+                if (!isProtectedReagent &&
+                    sPlayerbotAIConfig.auctionMaxBaselineRejects > 0 &&
+                    sRandomPlayerbotMgr.IsRandomBot(bot))
+                {
+                    std::string const key =
+                        "auction.baselineReject." + std::to_string(toSell->GetEntry());
+                    uint32 const botLow = bot->GetGUID().GetCounter();
+                    uint32 const count = sRandomPlayerbotMgr.GetValue(botLow, key);
+                    sRandomPlayerbotMgr.SetValue(botLow, key, count + 1);
                 }
                 return false;
             }
@@ -1201,6 +1227,18 @@ bool NewRpgGoAuctioneerAction::Execute(Event /*event*/)
 
             PlayerbotAuction::SendSellItem(bot, auctioneer, toSell,
                                             bid, buyout, sellDuration);
+
+            // Reset the baseline-reject counter on successful listing. The
+            // counter only accumulates while the AH is at the per-item or
+            // category cap; once a listing gets through, the cap has cleared
+            // and the counter resets so the next stack starts fresh.
+            if (sPlayerbotAIConfig.auctionMaxBaselineRejects > 0 &&
+                sRandomPlayerbotMgr.IsRandomBot(bot))
+            {
+                std::string const bkey =
+                    "auction.baselineReject." + std::to_string(toSell->GetEntry());
+                sRandomPlayerbotMgr.SetValue(bot->GetGUID().GetCounter(), bkey, 0);
+            }
 
             if (sPlayerbotAIConfig.debugAuction)
             {

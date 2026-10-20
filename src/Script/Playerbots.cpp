@@ -157,8 +157,8 @@ public:
             if (sPlayerbotAIConfig.Enabled)
             {
                 ChatHandler(player->GetSession()).SendSysMessage(
-                    "|cff00ff00This server runs with |cff00ccffmod-playerbots|r "
-                    "|cffcccccchttps://github.com/mod-playerbots/mod-playerbots|r");
+                    "|cff00ff00This server runs with |cff00ccffmod-playerbots-auctioneer|r "
+                    "|cffcccccchttps://github.com/electrobutterfly/mod-playerbots-auctioneer|r");
             }
 
             if (sPlayerbotAIConfig.Enabled || sPlayerbotAIConfig.RandomBotAutologin)
@@ -514,19 +514,20 @@ public:
         // but it should be publicly accessible and include all modifications you've made
         LOG_INFO("server.loading", "╔══════════════════════════════════════════════════════════╗");
         LOG_INFO("server.loading", "║                                                          ║");
-        LOG_INFO("server.loading", "║              AzerothCore Playerbots Module               ║");
+        LOG_INFO("server.loading", "║        AzerothCore Playerbots Auctioneer Module          ║");
         LOG_INFO("server.loading", "║                                                          ║");
         LOG_INFO("server.loading", "╟──────────────────────────────────────────────────────────╢");
-        LOG_INFO("server.loading", "║     mod-playerbots is a community-driven open-source     ║");
-        LOG_INFO("server.loading", "║  project based on AzerothCore, licensed under GNU GPLv2  ║");
+        LOG_INFO("server.loading", "║     mod-playerbots-auctioneer is a community-driven      ║");
+        LOG_INFO("server.loading", "║     open-source project based on mod-playerbots and      ║");
+        LOG_INFO("server.loading", "║           AzerothCore, licensed under GNU GPLv2          ║");
         LOG_INFO("server.loading", "╟──────────────────────────────────────────────────────────╢");
-        LOG_INFO("server.loading", "║     https://github.com/mod-playerbots/mod-playerbots     ║");
+        LOG_INFO("server.loading", "║       Made by https://github.com/electrobutterfly/       ║");
         LOG_INFO("server.loading", "╚══════════════════════════════════════════════════════════╝");
 
         uint32 oldMSTime = getMSTime();
 
         LOG_INFO("server.loading", " ");
-        LOG_INFO("server.loading", "Load Playerbots Config...");
+        LOG_INFO("server.loading", "Load Playerbots and Auctioneer Config...");
 
         sPlayerbotAIConfig.Initialize();
 

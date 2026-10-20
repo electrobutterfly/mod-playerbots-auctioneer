@@ -36,12 +36,14 @@ namespace
 {
     bool IsBagLikeContainer(ItemTemplate const* proto)
     {
-        if (!proto || proto->Class != ITEM_CLASS_CONTAINER)
+        if (!proto)
             return false;
 
-        return proto->SubClass == ITEM_SUBCLASS_CONTAINER ||
-               proto->SubClass == ITEM_SUBCLASS_QUIVER ||
-               proto->SubClass == ITEM_SUBCLASS_AMMO_POUCH;
+        // Normal bags.
+        if (proto->Class == ITEM_CLASS_CONTAINER && proto->SubClass == ITEM_SUBCLASS_CONTAINER)
+            return true;
+
+        return false;
     }
 
     // Can this bot actually use the bag? A profession-restricted bag
@@ -52,7 +54,10 @@ namespace
     // bag of the same size, so a bot should never buy one.
     bool IsBagUsableByBot(Player* bot, PlayerbotAI* botAI, ItemTemplate const* proto)
     {
-        if (!proto || proto->Class != ITEM_CLASS_CONTAINER)
+        if (!proto)
+            return false;
+
+        if (proto->Class != ITEM_CLASS_CONTAINER)
             return false;
 
         uint32 const family = proto->BagFamily;
@@ -75,8 +80,6 @@ namespace
             return botAI->HasSkill(SKILL_INSCRIPTION);
         if (family & BAG_FAMILY_MASK_SOUL_SHARDS)
             return bot->getClass() == CLASS_WARLOCK;
-        if (family & (BAG_FAMILY_MASK_ARROWS | BAG_FAMILY_MASK_BULLETS))
-            return bot->getClass() == CLASS_HUNTER;
 
         return false;
     }
@@ -235,6 +238,15 @@ bool BuyContainerAction::BuyContainerFromVendor(Creature* vendor)
                 continue;
             if (!IsBagUsableByBot(bot, botAI, proto))
                 continue;
+            // Quiver upgrades are wanted: a bigger quiver has the same
+            // BagFamily (ARROWS or BULLETS) as the existing one but replaces
+            // it. HasBagOfFamily was written for profession bags (herb pouch,
+            // mining bag, etc.) where stacking a second copy is pointless.
+            // Applied to quivers it blocks every upgrade a hunter can ever
+            // buy from a vendor or AH, because the existing 6-slot starter
+            // quiver has the same BagFamily as the 8-, 10-, or 16-slot one
+            // the bot is trying to buy. Skip the family check for quivers
+            // and let the slot-size comparison above do the filtering.
             if (HasBagOfFamily(bot, botAI, proto->BagFamily))
                 continue;
 
@@ -246,6 +258,23 @@ bool BuyContainerAction::BuyContainerFromVendor(Creature* vendor)
                 continue;
 
             if (bot->CanUseItem(proto) != EQUIP_ERR_OK)
+                continue;
+
+            // Verify the equip would actually succeed before selecting this
+            // item as the best candidate. A bigger bag cannot replace a
+            // hunter's quiver slot (QueryItemUsageForEquip returns
+            // ITEM_USAGE_NONE when the smallest equipped slot holds a quiver
+            // and all four slots are full), but the size comparison here
+            // would otherwise pick that bag anyway, buy it, fail the equip
+            // and break the loop without ever considering the bigger quiver
+            // that IS equippable. Skipping un-equippable candidates here
+            // lets the quiver upgrade win the pick when it exists, and
+            // prevents the bag being bought and left in the backpack.
+            ItemUsage const equipUsage =
+                AI_VALUE2(ItemUsage, "item upgrade", std::to_string(proto->ItemId));
+            if (equipUsage != ITEM_USAGE_EQUIP &&
+                equipUsage != ITEM_USAGE_REPLACE &&
+                equipUsage != ITEM_USAGE_BAD_EQUIP)
                 continue;
 
             uint32 const price =

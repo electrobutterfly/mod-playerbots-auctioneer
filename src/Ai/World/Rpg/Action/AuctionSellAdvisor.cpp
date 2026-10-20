@@ -133,7 +133,15 @@ bool IsProtectedClassReagent(Player* bot, Item* item)
                     item->GetTemplate()->SubClass == ITEM_SUBCLASS_POTION &&
                     item->GetTemplate()->Name1.find("Poison") != std::string::npos);
         case CLASS_HUNTER:
-            return item->GetTemplate()->Class == ITEM_CLASS_PROJECTILE;
+            // Projectiles must not be protected wholesale. QueryItemUsageForAmmo
+            // already gates on the bot's current reserve (8 stacks for hunters,
+            // 2 for rogue/warrior); anything that reaches the sell advisor with
+            // ITEM_USAGE_AH has been classified as surplus by that logic. The
+            // previous "protect every projectile for hunters" rule caused
+            // arrows and bullets to be rejected on every scan with
+            // rejClassReagent, even when the ammo seed left genuine surplus in
+            // the bot's bags. Let the surplus flow to the AH.
+            return false;
         case CLASS_DRUID:
             return entry == 17034; // Wild Thornroot
         default:
@@ -419,10 +427,12 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
         if (!p)
             continue;
 
-        if (!it->CanBeTraded()) { if (runAnalysis) ++rejTrade; continue; }
-        if (p->Quality < minQuality) { if (runAnalysis) ++rejQuality; continue; }
-        if (it->IsEquipped()) { if (runAnalysis) ++rejEquipped; continue; }
-        if (p->SellPrice < minValue) { if (runAnalysis) ++rejValue; continue; }
+        bool const sellValueTooLow =
+            p->SellPrice < minValue &&
+            p->Class != ITEM_CLASS_CONSUMABLE &&
+            p->Class != ITEM_CLASS_PROJECTILE &&
+            p->Class != ITEM_CLASS_QUIVER;
+        if (sellValueTooLow) { if (runAnalysis) ++rejValue; continue; }
 
         // Config-driven exclusion list. Server owners can list specific item
         // IDs to keep off the AH entirely; defaults are the tool items that
@@ -526,21 +536,28 @@ SellCandidate FindItemToSell(PlayerbotAI* botAI)
                 bucket = 2;
                 cap = keepMana;
             }
-            else
-            {
-                bucket = 100 + p->ItemId;
-                cap = 20;
-            }
+            // Otherwise bucket stays 0. Non-Healing/Mana potions (Swiftness,
+            // Free Action, Mighty Rage, Invulnerability, etc.) are NOT
+            // counted by the pre-scan above, which only tallies Healing/Health
+            // and Mana potions. Before this fix the else branch set
+            // bucket = 100 + itemId, which was never populated by the
+            // pre-scan, so held was always 0, 0 <= 20 held the item back, and
+            // every non-Healing/Mana potion was rejected on every scan with
+            // rejPotion. Skipping the keep logic when bucket == 0 lets these
+            // potions flow into the candidate pool so they can be listed.
 
-            uint32 const held = potionCounts[bucket];
-            uint32 const picked = potionAlreadyPicked[bucket];
-            if (held <= cap || picked >= (held - cap))
+            if (bucket != 0)
             {
-                if (runAnalysis) ++rejPotion;
-                continue;
-            }
+                uint32 const held = potionCounts[bucket];
+                uint32 const picked = potionAlreadyPicked[bucket];
+                if (held <= cap || picked >= (held - cap))
+                {
+                    if (runAnalysis) ++rejPotion;
+                    continue;
+                }
 
-            potionAlreadyPicked[bucket] += it->GetCount();
+                potionAlreadyPicked[bucket] += it->GetCount();
+            }
         }
 
                 uint32 value = p->SellPrice * it->GetCount();

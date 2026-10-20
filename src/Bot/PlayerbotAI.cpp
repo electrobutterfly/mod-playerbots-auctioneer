@@ -6453,6 +6453,16 @@ uint8 PlayerbotAI::FindEquipSlot(ItemTemplate const* proto, uint32 slot, bool sw
             slots[0] = EQUIPMENT_SLOT_MAINHAND;
             break;
         case INVTYPE_BAG:
+        case INVTYPE_QUIVER:
+            // Quivers and ammo pouches have INVTYPE_QUIVER, separate from
+            // INVTYPE_BAG at the item-template level, but they occupy the
+            // same four bag slots 19-22. Without this case FindEquipSlot
+            // returns NULL_SLOT for any quiver, CanEquipItem fails, and the
+            // entire QueryItemUsageForEquip -> EquipAction path treats
+            // quivers as un-equipable. That is why no bot can loot or buy
+            // a quiver today - the class-11 quiver branch inside
+            // QueryItemUsageForEquip is unreachable because the upstream
+            // CanEquipItem check rejects the item first.
             slots[0] = INVENTORY_SLOT_BAG_START + 0;
             slots[1] = INVENTORY_SLOT_BAG_START + 1;
             slots[2] = INVENTORY_SLOT_BAG_START + 2;

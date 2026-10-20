@@ -96,7 +96,7 @@ void EquipAction::EquipItem(Item* item)
 
     // Handle bags first
     bool equippedBag = false;
-    if (itemProto->Class == ITEM_CLASS_CONTAINER)
+    if (itemProto->Class == ITEM_CLASS_CONTAINER || itemProto->Class == ITEM_CLASS_QUIVER)
     {
         // Re-verify that this bag is still an upgrade. Equipping earlier
         // items in the same Execute batch may have already filled the slot
@@ -109,7 +109,6 @@ void EquipAction::EquipItem(Item* item)
             usage != ITEM_USAGE_BAD_EQUIP)
             return;
 
-        // Attempt to equip as a bag
         uint8 newBagSlot = GetSmallestBagSlot();
 
         if (newBagSlot > 0)

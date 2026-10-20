@@ -381,13 +381,14 @@ public:
 
     uint32 auctionMaxActiveListingsPerBot;
     uint32 auctionMaxRelistRetries;
-    uint32 auctionMaxSellsPerVisit;
 
-    // Bag-buying target: the bot keeps buying bags from vendors and the
-    // AH until every bag slot is at least this many slots. Once at the
-    // target, a strictly larger affordable bag on offer is still bought
-    // (bigger is always better). Set higher on well-developed servers.
-    uint32 auctionBagBuyTarget;
+    // Consecutive rejections at sell-queue build time from the baseline
+    // policy (per-item cap, category cap, or excluded-item list) before the
+    // item is reclassified as VENDOR so the vendor pipeline can pick it up.
+    // Only meaningful in Baseline.Mode 2. 0 disables the vendor fallback and
+    // the item stays classified as AH, retrying indefinitely.
+    uint32 auctionMaxBaselineRejects;
+    uint32 auctionMaxSellsPerVisit;
 
     // Threshold of live container listings on the faction AH above which
     // tailors stop crafting bags purely for AH sale. Bags still get

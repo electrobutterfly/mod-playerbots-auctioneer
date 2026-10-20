@@ -702,22 +702,6 @@ Playerbots.Auction.AllowBuyout = 0
 # tailor goes back to crafting something else.
 ####################################################################################################
 
-# Container slot-size target for BuyContainerAction. A bot will keep
-# buying bags from vendors and the AH until every one of its four bag
-# slots is at least this many slots. Above the target, a strictly larger
-# affordable bag on offer is still bought (bigger is always better).
-#
-# 16-slot matches the Netherweave Bag, the cheapest crafted bag on most
-# WotLK servers. Higher values (18, 20, 22) chase the Frostweave, Glacial
-# and specialty bags and require the population to afford them.
-#
-# Set to 0 to disable bag buying entirely (crafting and looting still
-# fill slots). Set to 24 to force the population to chase the largest
-# bags in the game.
-#
-# Default: 16
-Playerbots.Auction.BagBuyTarget = 16
-
 # Threshold of live container listings on the faction AH above which
 # tailors stop crafting bags purely for AH sale. Below the cap, bag
 # recipes get priority 6 (above generic useful crafts but below bags
@@ -898,6 +882,34 @@ Playerbots.Auction.Baseline.CraftArbitrageEnabled = 0
 #
 # Default: 15
 Playerbots.Auction.Baseline.CraftMarginPercent = 15
+
+# Consecutive rejections from the baseline policy (per-item cap, category
+# cap, or excluded-item list) at sell-queue build time before the item is
+# reclassified as VENDOR and sold to a vendor instead of being held in bags.
+#
+# Without this, a bot that crafted a stack of a mass-produced trade good
+# (Adamantite Sharpening Stone, Adamantite Weightstone, Grinding Stone, etc.)
+# that the AH has already reached the per-item cap on holds that stack in
+# bags indefinitely: the AH sell path rejects it on every visit and the
+# vendor pipeline skips it because ItemUsageValue still classifies it as
+# AH. With this, after MaxRejects consecutive rejections the classification
+# flips to VENDOR and the next vendor visit clears the stack.
+#
+# The counter is per-bot per-item. It resets to 0 on any successful AH
+# listing of the same item, and expires via Playerbots.MaxRandomBotInWorldTime
+# (default 14 days) if never cleared.
+#
+# The craft-arbitrage reagent reserve is excluded from this counter: items
+# held for a future craft are not counted as AH rejections, so the vendor
+# fallback never triggers on a reserved reagent.
+#
+# Only meaningful when Mode = 2. Mode 1 has no baseline caps.
+#
+# Set to 0 to disable the vendor fallback (pre-patch behaviour: rejected
+# items stay in bags and are retried on every AH visit, indefinitely).
+#
+# Default: 3
+Playerbots.Auction.Baseline.MaxRejects = 3
 
 # How often the running worldserver checks whether the baseline tool has
 # imported a newer snapshot, and if so, reloads its in-memory caches without

@@ -5,7 +5,9 @@
  */
 
 #include "CastCustomSpellAction.h"
+#include "AuctionBaseline.h"
 #include "AuctionHelpers.h"
+#include "AuctionHouseMgr.h"
 #include "ChatHelper.h"
 #include "Event.h"
 #include "ItemUsageValue.h"
@@ -201,6 +203,50 @@ bool CastRandomSpellAction::AcceptSpell(SpellInfo const* spellInfo)
     return !isTradeSkill && spellInfo->GetRecoveryTime() < MINUTE * IN_MILLISECONDS;
 }
 
+// Returns true if the produced item can currently be listed on the AH by
+// this bot. Used at craft-goal pin time and at craft-goal re-check time so
+// that a bot whose random craft pick lands on an item the AH will reject
+// does not stay pinned to it for the full 12-hour goal window, crafting
+// stack after stack that nothing can sell. Non-AH-classified items (equip,
+// use, quest, skill, ammo, disenchant) bypass this check - they are not
+// intended for the AH and their goal does not depend on AH capacity.
+static bool AhCanAcceptItem(Player* bot, uint32 itemId)
+{
+    if (sPlayerbotAIConfig.IsAuctionExcludedItem(itemId))
+        return false;
+
+    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
+    if (!proto)
+        return false;
+
+    if (sPlayerbotAIConfig.auctionExcludeVendorSoldItems &&
+        proto->Class != ITEM_CLASS_TRADE_GOODS &&
+        proto->Class != ITEM_CLASS_RECIPE &&
+        proto->Class != ITEM_CLASS_CONSUMABLE &&
+        sPlayerbotAIConfig.IsVendorSoldItem(itemId))
+        return false;
+
+    if (sPlayerbotAIConfig.auctionBaselineMode != 2)
+        return true;  // no baseline data, no per-item cap
+
+    uint8 const faction = (bot->GetTeamId() == TEAM_ALLIANCE) ? 2 : 6;
+    PlayerbotAuction::Baseline const* baseline =
+        PlayerbotAuction::AuctionBaselineMgr::instance().LookupWithFallback(faction, itemId, 0);
+    if (!baseline || baseline->listingTypical == 0)
+        return true;
+
+    uint32 liveForItem = 0;
+    if (AuctionHouseObject* ahObj = sAuctionMgr->GetAuctionsMap(bot->GetFaction()))
+    {
+        for (auto it = ahObj->GetAuctionsBegin(); it != ahObj->GetAuctionsEnd(); ++it)
+        {
+            if (it->second && it->second->item_template == itemId)
+                ++liveForItem;
+        }
+    }
+    return liveForItem < baseline->listingTypical;
+}
+
 bool CastRandomSpellAction::Execute(Event event)
 {
     std::vector<std::pair<uint32, std::string>> spellMap = GetSpellList();
@@ -235,6 +281,171 @@ bool CastRandomSpellAction::Execute(Event event)
 
     if (!got && !target)
         target = bot;
+
+    // 12 hours: matches the shortest supported listing duration. A goal is
+    // abandoned once it has not made progress for one full listing cycle,
+    // which is the point at which a stuck goal starts holding reagents that
+    // could be doing something else. The AH-acceptability check further
+    // below retires a goal earlier than this if the AH has filled up.
+    constexpr uint32 CRAFT_GOAL_TIMEOUT_SEC = 12 * 60 * 60;  // 12 hours
+    bool const isCraftAction = (getName() == "craft random item");
+    uint32 const craftBotLow = bot->GetGUID().GetCounter();
+
+    auto usageIsWorthGoal = [](ItemUsage u) -> bool {
+        return u == ITEM_USAGE_EQUIP ||
+               u == ITEM_USAGE_REPLACE ||
+               u == ITEM_USAGE_AH ||
+               u == ITEM_USAGE_SKILL ||
+               u == ITEM_USAGE_USE ||
+               u == ITEM_USAGE_AMMO ||
+               u == ITEM_USAGE_DISENCHANT;
+    };
+
+    if (isCraftAction && sRandomPlayerbotMgr.IsRandomBot(bot))
+    {
+        uint32 goalItem = sRandomPlayerbotMgr.GetValue(craftBotLow, "craft.goal.item");
+
+        if (goalItem)
+        {
+            uint32 const goalSince = sRandomPlayerbotMgr.GetValue(craftBotLow, "craft.goal.since");
+            if ((time(nullptr) - static_cast<time_t>(goalSince)) > CRAFT_GOAL_TIMEOUT_SEC)
+            {
+                sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.item", 0);
+                goalItem = 0;
+            }
+        }
+
+        if (goalItem)
+        {
+            // Retire the goal if it is no longer useful (e.g. bot already
+            // has enough bandages, or the item has been superseded as gear),
+            // or if it is AH-classified and the AH can no longer accept
+            // another listing - the baseline per-item cap, the excluded-item
+            // list, or the vendor-sold filter has started rejecting it. The
+            // AH case is what avoids a bot spending a full goal window
+            // crafting stacks that the sell path will never list.
+            ItemUsage goalUsage = AI_VALUE2(ItemUsage, "item usage", goalItem);
+            bool retireGoal = !usageIsWorthGoal(goalUsage);
+            if (!retireGoal && goalUsage == ITEM_USAGE_AH && !AhCanAcceptItem(bot, goalItem))
+                retireGoal = true;
+            if (retireGoal)
+            {
+                sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.item", 0);
+                goalItem = 0;
+            }
+        }
+
+        if (goalItem)
+        {
+            // Locate the recipe that produces the goal item.
+            uint32 goalSpell = 0;
+            for (auto const& spellState : bot->GetSpellMap())
+            {
+                if (spellState.second->State == PLAYERSPELL_REMOVED || !spellState.second->Active)
+                    continue;
+                SpellInfo const* si = sSpellMgr->GetSpellInfo(spellState.first);
+                if (!si)
+                    continue;
+                if (si->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
+                    continue;
+                if (si->Effects[EFFECT_0].ItemType != goalItem)
+                    continue;
+                goalSpell = spellState.first;
+                break;
+            }
+
+            if (goalSpell == 0)
+            {
+                // Bot no longer knows the recipe; retire the goal.
+                sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.item", 0);
+            }
+            else if (botAI->CanCastSpell(goalSpell, bot, true, nullptr, nullptr, true) &&
+                     castSpell(goalSpell, bot))
+            {
+                // Goal cast succeeded. Reset the timeout clock so the goal
+                // remains the target until it stops being useful.
+                sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.since",
+                                             static_cast<uint32>(time(nullptr)));
+
+                ItemTemplate const* producedProto = sObjectMgr->GetItemTemplate(goalItem);
+                LOG_DEBUG("playerbots",
+                          "[CRAFT] {} cast {} producing [{}] {} (goal)",
+                          bot->GetName(), goalSpell, goalItem,
+                          producedProto ? producedProto->Name1 : "<unknown>");
+
+                if (MultiCast && bot->HasInArc(CAST_ANGLE_IN_FRONT, bot, sPlayerbotAIConfig.SightDistance))
+                {
+                    std::ostringstream cmd;
+                    cmd << "castnc " << chat->FormatWorldobject(bot) + " " << goalSpell << " " << 19;
+                    botAI->HandleCommand(CHAT_MSG_WHISPER, cmd.str(), bot);
+                }
+                return true;
+            }
+            else
+            {
+                // Goal not castable right now. Look for a missing reagent the
+                // bot could craft itself and craft that instead: this is the
+                // "follow the path" step. Bag needs bolts: bot crafts one
+                // bolt per visit until the bag recipe has its 5-6 bolts.
+                SpellInfo const* goalInfo = sSpellMgr->GetSpellInfo(goalSpell);
+                bool progressed = false;
+                if (goalInfo)
+                {
+                    for (uint8 r = 0; r < MAX_SPELL_REAGENTS && !progressed; ++r)
+                    {
+                        uint32 const rId    = goalInfo->Reagent[r];
+                        uint32 const rCount = goalInfo->ReagentCount[r];
+                        if (!rId || !rCount)
+                            continue;
+                        if (bot->GetItemCount(rId, false) >= rCount)
+                            continue;  // satisfied
+
+                        // Is this reagent craftable by the bot?
+                        uint32 rSpell = 0;
+                        for (auto const& spellState : bot->GetSpellMap())
+                        {
+                            if (spellState.second->State == PLAYERSPELL_REMOVED || !spellState.second->Active)
+                                continue;
+                            SpellInfo const* si = sSpellMgr->GetSpellInfo(spellState.first);
+                            if (!si)
+                                continue;
+                            if (si->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
+                                continue;
+                            if (si->Effects[EFFECT_0].ItemType != rId)
+                                continue;
+                            rSpell = spellState.first;
+                            break;
+                        }
+                        if (rSpell == 0)
+                            continue;  // reagent comes from world/gather/vendor, not craft
+
+                        if (!botAI->CanCastSpell(rSpell, bot, true, nullptr, nullptr, true))
+                            continue;
+
+                        if (castSpell(rSpell, bot))
+                        {
+                            sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.since",
+                                                         static_cast<uint32>(time(nullptr)));
+                            ItemTemplate const* rProto = sObjectMgr->GetItemTemplate(rId);
+                            LOG_DEBUG("playerbots",
+                                      "[CRAFT] {} cast {} producing [{}] {} (reagent for goal [{}])",
+                                      bot->GetName(), rSpell, rId,
+                                      rProto ? rProto->Name1 : "<unknown>", goalItem);
+                            progressed = true;
+                        }
+                    }
+                }
+
+                if (progressed)
+                    return true;
+
+                // No progress this visit; keep the goal for the next visit and
+                // fall through to the normal random pick so the bot is not
+                // idle. The timeout above will retire the goal if it stays
+                // unreachable.
+            }
+        }
+    }
 
     std::vector<std::pair<uint32, std::pair<uint32, WorldObject*>>> spellList;
 
@@ -272,10 +483,38 @@ bool CastRandomSpellAction::Execute(Event event)
               [](std::pair<uint32, std::pair<uint32, WorldObject*>> i,
                  std::pair<uint32, std::pair<uint32, WorldObject*>> j) { return i.second.first > j.second.first; });
 
-    uint32 rndBound = spellList.size() / 4;
+    // When every candidate has the same priority (CraftRandomItemAction
+    // returns 1 for every recipe), the sort order above is arbitrary
+    // and the "top quarter" restriction below picks a fixed, small
+    // subset of a bot's recipes. For a bot with 100 recipes, only ~11
+    // are ever attempted, which collapses the AH catalogue back down to
+    // whichever recipes happen to land in that quarter. Detect the
+    // uniform case and let the pick span the full list. The top-quarter
+    // restriction is retained when priorities actually differ, so the
+    // EnchantRandomItemAction priority-10 skill-up bias still works.
+    bool prioritiesUniform = true;
+    if (!spellList.empty())
+    {
+        uint32 const firstPriority = spellList.front().second.first;
+        for (auto const& entry : spellList)
+        {
+            if (entry.second.first != firstPriority)
+            {
+                prioritiesUniform = false;
+                break;
+            }
+        }
+    }
 
-    rndBound = std::min(rndBound, (uint32)10);
-    rndBound = std::max(rndBound, (uint32)0);
+    uint32 rndBound;
+    if (prioritiesUniform)
+        rndBound = static_cast<uint32>(spellList.size() - 1);
+    else
+    {
+        rndBound = static_cast<uint32>(spellList.size() / 4);
+        rndBound = std::min(rndBound, (uint32)10);
+        rndBound = std::max(rndBound, (uint32)0);
+    }
 
     for (uint32 i = 0; i < 5; i++)
     {
@@ -317,6 +556,35 @@ bool CastRandomSpellAction::Execute(Event event)
                               castInfo->Id,
                               producedItemId,
                               producedProto ? producedProto->Name1 : "<unknown>");
+
+                    if (isCraftAction && sRandomPlayerbotMgr.IsRandomBot(bot))
+                    {
+                        uint32 existingGoal = sRandomPlayerbotMgr.GetValue(craftBotLow, "craft.goal.item");
+                        if (existingGoal == 0)
+                        {
+                            ItemUsage pickedUsage = AI_VALUE2(ItemUsage, "item usage", producedItemId);
+                            bool canPin = usageIsWorthGoal(pickedUsage);
+                            // For AH-classified items, only pin when the AH
+                            // can currently accept another listing. Without
+                            // this, a bot whose random pick lands on a
+                            // mass-crafted trade good already at the
+                            // baseline per-item cap (Adamantite Sharpening
+                            // Stone, Adamantite Weightstone, etc.) stays
+                            // pinned to that item for the full 12-hour goal
+                            // window, burning reagents on stacks the sell
+                            // path rejects. Self-use, upgrade, quest, skill,
+                            // ammo and disenchant crafts are still tracked
+                            // unconditionally.
+                            if (canPin && pickedUsage == ITEM_USAGE_AH)
+                                canPin = AhCanAcceptItem(bot, producedItemId);
+                            if (canPin)
+                            {
+                                sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.item", producedItemId);
+                                sRandomPlayerbotMgr.SetValue(craftBotLow, "craft.goal.since",
+                                                             static_cast<uint32>(time(nullptr)));
+                            }
+                        }
+                    }
                 }
                 else
                 {
@@ -358,99 +626,20 @@ bool CraftRandomItemAction::AcceptSpell(SpellInfo const* spellInfo)
            spellInfo->SchoolMask == 1;
 }
 
-uint32 CraftRandomItemAction::GetSpellPriority(SpellInfo const* spellInfo)
+uint32 CraftRandomItemAction::GetSpellPriority(SpellInfo const* /*spellInfo*/)
 {
-    // AcceptSpell already filtered on Effect == SPELL_EFFECT_CREATE_ITEM, so the
-    // historical "!= SPELL_EFFECT_CREATE_ITEM" guard was dead code and the
-    // useful-item tier below never ran. Corrected here.
-    uint32 newItemId = spellInfo->Effects[EFFECT_0].ItemType;
-    if (!newItemId)
-    {
-        if (ItemUsageValue::SpellGivesSkillUp(spellInfo->Id, bot))
-            return 8;
-
-        return 1;
-    }
-
-    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(newItemId);
-    if (!proto)
-        return 1;
-
-    // Containers (bags, quivers, ammo pouches) get a special priority
-    // scheme. Bags are pure utility: a bot can never have too much bag
-    // space, but a bot whose slots are already full has no direct use
-    // for a bag recipe beyond stocking the AH.
+    // Original mod-playerbots behaviour: uniform random among all recipes the
+    // bot has learned and can currently cast. Recipe diversity across the
+    // whole bot population is what produces the mixed AH catalogue (bags,
+    // quivers, ammo pouches, potions, elixirs, flasks, robes, weapons, food)
+    // that the priority tiers this fork added were unintentionally
+    // suppressing in favour of high-volume recipes like bandages and bolts.
     //
-    //   1. Any slot empty           -> priority 12 + ContainerSlots
-    //                                  Exclusive top tier. Bigger bags
-    //                                  win, so the bot doesn't fill a
-    //                                  slot with a 6-slot bag when a
-    //                                  16-slot one is in the pool.
-    //   2. Smallest slot < output   -> priority 10 + ContainerSlots
-    //                                  Upgrade tier. Still above the
-    //                                  generic 10 shared with other
-    //                                  useful crafts because bigger
-    //                                  upgrades outrank smaller ones.
-    //   3. All slots >= output,
-    //      AH below BagAHCap        -> priority 6
-    //                                  Craft for AH supply.
-    //   4. All slots >= output,
-    //      AH at or above cap       -> priority 1
-    //                                  Stop crafting bags, do something
-    //                                  else with the reagents.
-    if (proto->Class == ITEM_CLASS_CONTAINER && proto->SubClass == ITEM_SUBCLASS_CONTAINER)
-    {
-        bool anySlotEmpty = false;
-        uint32 smallestEquipped = 0;
-        for (uint8 slot = INVENTORY_SLOT_BAG_START; slot < INVENTORY_SLOT_BAG_END; ++slot)
-        {
-            Item* equippedBag = bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot);
-            if (equippedBag && equippedBag->GetTemplate())
-            {
-                uint32 const s = equippedBag->GetTemplate()->ContainerSlots;
-                if (smallestEquipped == 0 || s < smallestEquipped)
-                    smallestEquipped = s;
-            }
-            else
-            {
-                anySlotEmpty = true;
-            }
-        }
-
-        uint32 const outputSlots = proto->ContainerSlots;
-
-        if (anySlotEmpty)
-            return 12 + outputSlots;
-
-        if (outputSlots > smallestEquipped)
-            return 10 + outputSlots;
-
-        if (sPlayerbotAIConfig.auctionBagAHCap > 0)
-        {
-            uint32 const liveBags = PlayerbotAuction::CountBagListings(bot);
-            if (liveBags < sPlayerbotAIConfig.auctionBagAHCap)
-                return 6;
-        }
-
-        return 1;
-    }
-    uint32 const maxStack = proto->GetMaxStackSize();
-    uint32 const dedupAt = std::min<uint32>(maxStack, 3);
-    if (dedupAt > 1 && bot->GetItemCount(newItemId, false) >= dedupAt)
-        return 1;
-
-    // The recipe produces something the bot actively wants: an upgrade,
-    // ammo, a quest item, a profession reagent it does not yet have, a
-    // consumable it is running low on.
-    ItemUsage usage = AI_VALUE2(ItemUsage, "item usage", newItemId);
-    if (usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_AMMO ||
-        usage == ITEM_USAGE_QUEST || usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_USE)
-        return 10;
-
-    // Skill-up recipes are valuable for bots still leveling their profession.
-    if (ItemUsageValue::SpellGivesSkillUp(spellInfo->Id, bot))
-        return 8;
-
+    // Focus is preserved by the craft.goal mechanism inside
+    // CastRandomSpellAction::Execute: once a bot commits to a target item, it
+    // keeps working toward that item across visits, crafting missing reagents
+    // first, so multi-step recipes (bag = bolts = cloth) still finish even
+    // though the initial pick is random.
     return 1;
 }
 

@@ -4648,8 +4648,9 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
         if (anyEmpty)
             smallestBagSize = 0;
 
+        constexpr uint32 kMaxStandardContainerSlots = 24;
         if (botAI && sPlayerbotAIConfig.auctionEnabled && !botAI->IsAltBot() &&
-            smallestBagSize < sPlayerbotAIConfig.auctionBagBuyTarget)
+            smallestBagSize < kMaxStandardContainerSlots)
         {
             preferBagVendor = true;
         }
@@ -4690,19 +4691,22 @@ std::vector<WorldLocation> TravelMgr::GetCityLocations(Player* bot)
                     continue;
 
                 ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item->item);
-                if (!proto || proto->Class != ITEM_CLASS_CONTAINER)
+                if (!proto)
                     continue;
-                if (proto->SubClass != ITEM_SUBCLASS_CONTAINER &&
-                    proto->SubClass != ITEM_SUBCLASS_QUIVER &&
-                    proto->SubClass != ITEM_SUBCLASS_AMMO_POUCH)
+
+                bool const isContainer = (proto->Class == ITEM_CLASS_CONTAINER &&
+                                          proto->SubClass == ITEM_SUBCLASS_CONTAINER);
+                bool const isQuiver = (proto->Class == ITEM_CLASS_QUIVER);
+                if (!isContainer && !isQuiver)
                     continue;
+
                 if (proto->ContainerSlots <= smallestBagSize)
                     continue;
                 if (bot->CanUseItem(proto) != EQUIP_ERR_OK)
                     continue;
 
                 // Skip profession-restricted bags the bot cannot fill.
-                if (proto->BagFamily != 0)
+                if (isContainer && proto->BagFamily != 0)
                 {
                     bool professionMatch = false;
                     if ((proto->BagFamily & BAG_FAMILY_MASK_HERBS) && botAI->HasSkill(SKILL_HERBALISM))

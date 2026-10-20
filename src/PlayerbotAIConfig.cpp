@@ -80,7 +80,7 @@ static void ParseLevelMgrExcludeNames(std::string const& csv, std::vector<std::s
 
 bool PlayerbotAIConfig::Initialize()
 {
-    LOG_INFO("server.loading", "Initializing mod-playerbots, based on AI Playerbots by ike3 and the original Playerbots by blueboy");
+    LOG_INFO("server.loading", "Initializing mod-playerbots-auctioneer, based on AI Playerbots by ike3 and the original Playerbots by blueboy");
 
     Enabled = sConfigMgr->GetOption<bool>("Playerbots.Enabled", true);
     if (!Enabled)
@@ -646,10 +646,8 @@ bool PlayerbotAIConfig::Initialize()
         auctionMaxRelistRetries =
         sConfigMgr->GetOption<uint32>("Playerbots.Auction.MaxRelistRetries", 3);
 
-    auctionBagBuyTarget =
-        sConfigMgr->GetOption<uint32>("Playerbots.Auction.BagBuyTarget", 16);
-    if (auctionBagBuyTarget < 1)
-        auctionBagBuyTarget = 16;
+    auctionMaxBaselineRejects =
+        sConfigMgr->GetOption<uint32>("Playerbots.Auction.Baseline.MaxRejects", 3);
 
     auctionBagAHCap =
         sConfigMgr->GetOption<uint32>("Playerbots.Auction.BagAHCap", 50);
@@ -1116,7 +1114,7 @@ bool PlayerbotAIConfig::Initialize()
     LoadList<std::vector<uint32>>(sConfigMgr->GetOption<std::string>("Playerbots.ExcludedHunterPetFamilies", ""), ExcludedHunterPetFamilies);
 
     LOG_INFO("server.loading", "---------------------------------------");
-    LOG_INFO("server.loading", "       mod-playerbots initialized      ");
+    LOG_INFO("server.loading", " mod-playerbots-auctioneer initialized ");
     LOG_INFO("server.loading", "---------------------------------------");
 
     return true;
