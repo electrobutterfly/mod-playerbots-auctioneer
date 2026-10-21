@@ -6,8 +6,9 @@
     <a href="https://github.com/electrobutterfly/mod-playerbots-auctioneer">Playerbots-Auctioneer</a>
 </p>
 <div align="center">
-  <img src="assets/banner.jpg" alt="Playerbots Banner" width="700px">
+  <img src="https://github.com/electrobutterfly/mod-playerbots-auctioneer/blob/main/assets/banner.jpg?raw=true" alt="Playerbots Banner" width="700px">
 </div>
+
 
 
 # Playerbots-Auctioneer
@@ -62,16 +63,6 @@ Bots grow into bags the way real players do: they start with the containers the 
 - `1` — historical. Every randomize grants a full set of high-quality bags, regardless of the bot's level or progression. Bots never need to find, buy or craft bags.
 - `2` — starter-kit only. A bot keeps the containers its class was created with — the 16-slot backpack every character has, plus whatever the core wrote from the `CharStartOutfitEntry` (four 12-slot bags for Death Knights, a 6-slot quiver for Hunters). Any further bag space must be earned.
 
-Under either mode, three independent subsystems drive bag growth:
-
-**Buy container (vendor and AH).** After a vendor visit's sell and disenchant passes have run, and after an AH visit's sell, mail and bid passes have finished, the bot searches the vendor's stock (or the AH buyout listings) for a bag, quiver or ammo pouch larger than the smallest equipped container, and buys the largest it can afford. Cheapest-price breaks ties within the same size. The action only runs once per visit and skips entirely if the bot cannot pay.
-
-**Craft bags.** Every profession recipe a bot knows that produces a standard bag, quiver or ammo pouch is a crafting candidate at the same priority as useful-item crafts. Tailoring supplies the standard bags (Linen through Frostweave, plus the profession specialty bags); Leatherworking supplies the quivers and ammo pouches. Bag size varies with the bot's skill level, so a fresh server sees 6- and 8-slot bags early and 16-, 18- and 20-slot bags later. Recipes unlock at fixed skill thresholds, so the population's bag supply is a function of its profession progression rather than a fixed grant.
-
-**Equip on loot.** A container in a bot's bags that is strictly larger than its smallest equipped bag (or any container if a bag slot is empty) is classified as a gear upgrade. `EquipAction` swaps it into the appropriate slot and the displaced container returns to bags, where the sell pipeline eventually picks it up. Hunters can upgrade their quivers, and pouches are treated the same as bags for them. Bag slots fill left-to-right starting at slot 19; on equal sizes, the first such slot wins, so replacements also march left-to-right.
-
-Every bag equip, purchase and swap emits a `[BAG]` line to the log. See the *Troubleshooting* document for the log format and grep recipes.
-
 ### Altbot auction-house block
 
 `Playerbots.Auction.AllowAltBots` (default `0`) controls whether altbots and addclass bots are allowed to visit an auctioneer under automation.
@@ -103,12 +94,10 @@ That is not an issue of playerbots-auctioneer but the underlying [mod-playerbots
 > specific commits that only exist in the fork below. The upstream
 > `mod-playerbots` repository is updated on its own schedule and is frequently
 > out of sync with this module's expectations. **If you clone upstream and then
-> clone this module into `modules/`, the module will not compile** — the
-> interfaces it depends on (`PlayerbotAIConfig`, `NewRpgInfo`, `TravelMgr`,
-> `ItemUsageValue`, and others) diverge between the two repos.
->
+> clone this module into `modules/`, the module will most likely not compile**!
+> 
 > The fork below tracks `mod-playerbots` and is updated alongside this module,
-> so it always contains the exact commit the module expects.
+>so it always contains the exact commit the module expects.
 
 
 
@@ -415,7 +404,7 @@ The seller and buyer pricing comparison logic is built against [mod-ah-bot-plus]
 
 The auction-house subsystem builds on the movement, chat, and personality infrastructure of [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots), without which none of this would be possible.
 
-[Here](AUTHORS-OLD.md) you will find all the authors involved in the development of the original module.
+[Here](AUTHORS-OLD.md) you will find all the authors involved in the development of the original playerbots module.
 
 ------
 
